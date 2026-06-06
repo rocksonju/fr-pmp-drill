@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMP Topic Driller</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--sidebar-bg:#161b22;--surface:#1c2128;--surface-2:#21262d;
+  --border:#30363d;--accent:#388bfd;--accent-dim:rgba(56,139,253,0.12);
+  --accent-hover:#58a6ff;--red:#f85149;--green:#3fb950;
+  --text:#c9d1d9;--text-muted:#8b949e;--heading:#f0f6fc;
+  --code-fg:#8b949e;--code-bg:#010409;
+}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+
+/* TOP BAR */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:400;height:52px;background:var(--sidebar-bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 1rem 0 0}
+.brand{display:flex;align-items:center;height:100%;padding:0 1rem;border-right:1px solid var(--border);width:260px;flex-shrink:0}
+.brand-icon{width:32px;height:32px;border-radius:7px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;margin-right:0.6rem;flex-shrink:0}
+.brand-name{font-size:0.9rem;font-weight:700;color:var(--heading)}
+.brand-sub{font-size:0.62rem;color:var(--text-muted);margin-top:1px}
+.topbar-right{display:flex;align-items:center;gap:8px;padding:0 0.5rem}
+.topic-title-bar{flex:1;padding:0 1.25rem;font-size:0.82rem;font-weight:600;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#active-topic-name{color:var(--heading)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:0.38rem 0.9rem;border-radius:6px;border:none;font-size:0.78rem;font-weight:700;cursor:pointer;transition:background 0.15s,opacity 0.15s,transform 0.1s;letter-spacing:0.02em;white-space:nowrap}
+.btn:active{transform:scale(0.97)}
+.btn:disabled{opacity:0.28;cursor:not-allowed;pointer-events:none}
+.btn-docx{background:#1f6feb;color:#fff}
+.btn-docx:hover{background:var(--accent-hover)}
+.btn-pdf{background:#6e1111;color:#fca5a5;border:1px solid #991b1b}
+.btn-pdf:hover{background:#991b1b;color:#fff}
+.font-ctrl{display:flex;align-items:center;gap:3px;padding:0 0.6rem;border-left:1px solid var(--border);border-right:1px solid var(--border)}
+.btn-font{background:var(--surface);color:var(--text-muted);border:1px solid var(--border);border-radius:4px;cursor:pointer;padding:0.27rem 0.52rem;font-weight:700;line-height:1;transition:background 0.12s,color 0.12s}
+.btn-font:hover{background:var(--surface-2);color:var(--heading)}
+.btn-font:disabled{opacity:0.22;cursor:not-allowed;pointer-events:none}
+.btn-font-a-{font-size:0.68rem}.btn-font-a+{font-size:0.82rem}
+.font-val{font-size:0.63rem;color:var(--text-muted);min-width:32px;text-align:center;user-select:none}
+
+/* LAYOUT */
+.layout{display:flex;height:calc(100vh - 52px);margin-top:52px}
+
+/* SIDEBAR */
+.sidebar{width:260px;min-width:260px;background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#sidebar-scroll{flex:1;overflow-y:auto}
+#sidebar-scroll::-webkit-scrollbar{width:3px}
+#sidebar-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.sidebar-footer{padding:0.5rem 0.85rem;border-top:1px solid var(--border);font-size:0.6rem;color:var(--text-muted);flex-shrink:0}
+
+/* SEGMENTS */
+.seg-header{display:flex;align-items:center;gap:0.45rem;padding:0.52rem 0.85rem;cursor:pointer;background:var(--surface);border-bottom:1px solid var(--border);user-select:none;transition:background 0.1s;position:sticky;top:0;z-index:5}
+.seg-header:hover{background:var(--surface-2)}
+.seg-name{flex:1;font-size:0.67rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--heading)}
+.seg-count{font-size:0.59rem;color:var(--text-muted);background:var(--surface-2);padding:1px 6px;border-radius:10px;border:1px solid var(--border)}
+.chevron{font-size:0.55rem;color:var(--text-muted);transition:transform 0.18s;flex-shrink:0}
+.seg-collapsed .chevron{transform:rotate(-90deg)}
+.seg-body.hidden{display:none}
+
+/* SUB-SEGMENTS */
+.subseg-header{display:flex;align-items:center;gap:0.4rem;padding:0.36rem 0.85rem 0.36rem 1rem;cursor:pointer;background:var(--bg);border-bottom:1px solid var(--border);user-select:none;transition:background 0.1s}
+.subseg-header:hover{background:var(--surface)}
+.subseg-label{flex:1;font-size:0.7rem;font-weight:700;color:var(--text-muted)}
+.subseg-count{font-size:0.57rem;color:var(--text-muted);margin-right:2px}
+.subseg-chevron{font-size:0.5rem;color:var(--text-muted);transition:transform 0.15s;flex-shrink:0}
+.subseg-collapsed .subseg-chevron{transform:rotate(-90deg)}
+.subseg-body.hidden{display:none}
+
+/* FILE ITEMS */
+.file-item{display:flex;align-items:flex-start;gap:0.5rem;padding:0.42rem 0.85rem 0.42rem 1.55rem;cursor:pointer;border-left:3px solid transparent;transition:background 0.1s,border-color 0.1s}
+.file-item:hover{background:var(--surface)}
+.file-item.active{background:var(--accent-dim);border-left-color:var(--accent)}
+.file-dot{width:5px;height:5px;border-radius:50%;background:var(--border);margin-top:5px;flex-shrink:0;transition:background 0.1s}
+.file-item.active .file-dot{background:var(--accent)}
+.file-name{font-size:0.74rem;color:var(--text);line-height:1.35;word-break:break-word}
+.file-item.active .file-name{color:var(--heading);font-weight:600}
+
+/* USER CHOICE */
+.uc-toolbar{padding:0.42rem 0.85rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:4px}
+.uc-add-btn{display:flex;align-items:center;gap:4px;padding:0.24rem 0.62rem;background:var(--accent);color:#fff;border:none;border-radius:5px;font-size:0.67rem;font-weight:700;cursor:pointer;transition:background 0.15s}
+.uc-add-btn:hover{background:var(--accent-hover)}
+.uc-io-btn{display:inline-flex;align-items:center;gap:3px;padding:0.24rem 0.52rem;background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border);border-radius:5px;font-size:0.65rem;font-weight:700;cursor:pointer;transition:background 0.15s,color 0.15s;white-space:nowrap}
+.uc-io-btn:hover{background:var(--surface);color:var(--heading)}
+.uc-io-btn:disabled{opacity:0.28;cursor:not-allowed;pointer-events:none}
+.uc-item{position:relative;display:flex;align-items:flex-start;gap:0.5rem;padding:0.42rem 1.8rem 0.42rem 1.2rem;cursor:pointer;border-left:3px solid transparent;transition:background 0.1s}
+.uc-item:hover{background:var(--surface)}
+.uc-item.active{background:var(--accent-dim);border-left-color:var(--accent)}
+.uc-del{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.62rem;padding:2px 5px;border-radius:3px;opacity:0;transition:opacity 0.12s}
+.uc-item:hover .uc-del{opacity:1}
+.uc-del:hover{color:var(--red);background:rgba(248,81,73,0.12)}
+.uc-empty{padding:0.65rem 1.2rem;font-size:0.69rem;color:var(--text-muted);font-style:italic}
+
+/* CONTENT AREA */
+.content-area{flex:1;overflow-y:auto;background:var(--bg);position:relative}
+.content-area::-webkit-scrollbar{width:5px}
+.content-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+#empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:3rem}
+.es-icon{font-size:4rem;margin-bottom:1rem;opacity:0.3}
+.es-title{font-size:1.1rem;font-weight:700;color:var(--heading);margin-bottom:0.5rem}
+.es-sub{font-size:0.82rem;color:var(--text-muted);max-width:340px;line-height:1.65}
+#section-nav{display:none;position:sticky;top:0;z-index:10;background:rgba(22,27,34,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);padding:0.55rem 3rem;flex-wrap:wrap;gap:5px;align-items:center}
+#section-nav.visible{display:flex}
+.nav-lbl{font-size:0.6rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-right:6px;flex-shrink:0}
+.nav-link{font-size:0.67rem;color:var(--accent);background:var(--accent-dim);padding:2px 8px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.12s,color 0.12s}
+.nav-link:hover{background:var(--accent);color:#fff}
+#doc-wrapper{display:none;max-width:880px;margin:0 auto;padding:2.5rem 3.5rem 6rem}
+#doc-wrapper.visible{display:block}
+
+/* DOCUMENT STYLES */
+#doc-content{color:var(--text);line-height:1.78;font-size:0.94rem}
+#doc-content h1{font-size:1.8rem;color:var(--heading);font-weight:900;text-align:center;line-height:1.2;border-bottom:2px solid var(--accent);padding-bottom:0.7rem;margin-bottom:0.2rem}
+#doc-content h1+h3{text-align:center;color:var(--text-muted);font-size:0.87rem;font-weight:500;margin-top:0.4rem;margin-bottom:0.5rem;border:none;padding:0;background:none;letter-spacing:0;text-transform:none}
+#doc-content h2{font-size:1rem;color:var(--heading);font-weight:800;margin:2.4rem 0 0.85rem;padding:0.52rem 0.9rem;border-left:3px solid var(--accent);background:linear-gradient(90deg,var(--accent-dim) 0%,transparent 80%);border-radius:0 4px 4px 0}
+#doc-content h3{font-size:0.77rem;color:var(--text-muted);font-weight:800;margin:1.6rem 0 0.55rem;text-transform:uppercase;letter-spacing:0.07em;padding-bottom:0.3rem;border-bottom:1px solid var(--border)}
+#doc-content h4{font-size:0.9rem;color:var(--text);font-weight:700;margin:1.2rem 0 0.4rem}
+#doc-content p{margin:0.6rem 0}
+#doc-content hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
+#doc-content table{width:100%;border-collapse:collapse;margin:1.1rem 0;font-size:0.84rem;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+#doc-content thead th{background:#1f4068;color:#93c5fd;padding:0.6rem 0.85rem;text-align:left;font-weight:700;font-size:0.79rem;letter-spacing:0.02em;border-bottom:1px solid var(--border)}
+#doc-content tbody td{padding:0.55rem 0.85rem;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.55}
+#doc-content tbody tr:nth-child(odd) td{background:var(--surface)}
+#doc-content tbody tr:nth-child(even) td{background:var(--bg)}
+#doc-content tbody tr:hover td{background:var(--accent-dim);transition:background 0.1s}
+#doc-content tbody tr:last-child td{border-bottom:none}
+#doc-content pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:1.2rem 1.4rem;overflow-x:auto;margin:1rem 0;font-size:0.77rem;line-height:1.65}
+#doc-content pre code{background:none;color:var(--code-fg);padding:0;font-size:inherit;border-radius:0}
+#doc-content :not(pre)>code{background:var(--surface-2);color:#ff7b72;padding:1px 6px;border-radius:4px;font-size:0.82em;font-family:'Cascadia Code','Courier New','Consolas',monospace}
+#doc-content ul,#doc-content ol{padding-left:1.6rem;margin:0.6rem 0}
+#doc-content li{margin:0.28rem 0}
+#doc-content ul li::marker,#doc-content ol li::marker{color:var(--accent)}
+#doc-content blockquote{border-left:3px solid var(--accent);background:var(--accent-dim);padding:0.75rem 1.1rem;margin:1rem 0;border-radius:0 6px 6px 0}
+#doc-content blockquote p{margin:0.2rem 0}
+#doc-content blockquote strong{color:var(--heading)}
+#doc-content strong{color:var(--heading);font-weight:700}
+#doc-content em{color:#79c0ff;font-style:normal;font-weight:500}
+
+.toast{position:fixed;bottom:1.25rem;right:1.25rem;z-index:9999;background:var(--surface);color:var(--heading);border:1px solid var(--border);padding:0.55rem 1rem;border-radius:7px;font-size:0.78rem;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.45);transform:translateY(14px);opacity:0;transition:transform 0.22s,opacity 0.22s;pointer-events:none;max-width:300px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.ok{border-color:var(--green);color:var(--green)}
+.toast.err{border-color:var(--red);color:var(--red)}
+
+/* ── HAMBURGER + BACKDROP ─────────────────────────────────────── */
+.menu-btn{display:none;align-items:center;justify-content:center;width:44px;height:52px;background:none;border:none;color:var(--text-muted);font-size:1.3rem;cursor:pointer;flex-shrink:0;transition:color 0.15s;padding:0}
+.menu-btn:hover{color:var(--heading)}
+.backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:250;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.backdrop.show{display:block}
+
+/* ── TABLET + MOBILE — sidebar overlay ───────────────────────── */
+@media (max-width:1024px){
+  .menu-btn{display:flex}
+  .brand{width:auto;min-width:0;border-right:none;padding:0 0.75rem}
+  .sidebar{position:fixed;top:52px;left:0;bottom:0;z-index:300;transform:translateX(-100%);transition:transform 0.26s ease;box-shadow:none}
+  .sidebar.open{transform:translateX(0);box-shadow:6px 0 28px rgba(0,0,0,0.55)}
+}
+
+/* ── PHONE ≤ 600px ────────────────────────────────────────────── */
+@media (max-width:600px){
+  .brand-sub{display:none}
+  .topic-title-bar{display:none}
+  .brand{padding:0 0.55rem}
+  .brand-icon{width:26px;height:26px;font-size:0.82rem;margin-right:0.38rem}
+  .brand-name{font-size:0.82rem}
+  .font-ctrl{padding:0 0.38rem}
+  .btn-font{padding:0.24rem 0.4rem}
+  .font-val{min-width:26px;font-size:0.58rem}
+  .topbar-right{gap:4px;padding:0 0.38rem}
+  .btn{padding:0.32rem 0.5rem;font-size:0.7rem}
+  .btn-label{display:none}
+  .seg-header{padding:0.48rem 0.7rem}
+  .subseg-header{padding:0.46rem 0.75rem 0.46rem 0.85rem}
+  .file-item{padding:0.58rem 0.75rem 0.58rem 1.1rem;min-height:40px}
+  .uc-item{padding:0.58rem 1.7rem 0.58rem 1.1rem;min-height:40px}
+  .uc-toolbar{padding:0.38rem 0.75rem}
+  #doc-wrapper{padding:1.4rem 1rem 5rem}
+  #doc-content h1{font-size:1.35rem}
+  #doc-content h2{font-size:0.92rem}
+  #doc-content table{font-size:0.78rem}
+  #doc-content pre{font-size:0.72rem;padding:0.9rem 1rem}
+  #section-nav{padding:0.45rem 1rem}
+}
+
+@media print{
+  html,body{height:auto!important;overflow:visible!important;background:white!important}
+  .topbar,.sidebar,#empty-state,#section-nav,.toast{display:none!important}
+  .layout{display:block!important;height:auto!important}
+  .content-area{overflow:visible!important;height:auto!important}
+  #doc-wrapper{display:block!important;max-width:100%;margin:0;padding:0}
+  #doc-content{font-size:10.5pt!important;color:#1a202c!important;line-height:1.65!important}
+  @page{size:A4;margin:2.2cm 2.5cm 2.5cm 2.5cm}
+  #doc-content h1{font-size:20pt!important;color:#1e3a5f!important;border-bottom-color:#3182ce!important;page-break-after:avoid}
+  #doc-content h2{font-size:12pt!important;color:#1e3a5f!important;background:#f0f7ff!important;border-left-color:#3182ce!important;page-break-after:avoid}
+  #doc-content h3{font-size:9pt!important;color:#2c5282!important;border-bottom-color:#cbd5e0!important;page-break-after:avoid}
+  #doc-content h4{color:#2d3748!important}
+  #doc-content p,#doc-content li{color:#2d3748!important}
+  #doc-content strong{color:#1e3a5f!important}
+  #doc-content em{color:#2c5282!important}
+  #doc-content hr{border-top-color:#cbd5e0!important}
+  #doc-content table{page-break-inside:avoid;font-size:8.5pt!important;border-color:#cbd5e0!important}
+  #doc-content thead th{background:#1e3a5f!important;color:#fff!important;border:none!important}
+  #doc-content tbody td{color:#2d3748!important;border-bottom-color:#e2e8f0!important}
+  #doc-content tbody tr:nth-child(odd) td{background:#f7fafc!important}
+  #doc-content tbody tr:nth-child(even) td{background:#fff!important}
+  #doc-content tbody tr:hover td{background:inherit!important}
+  #doc-content pre{background:#f5f5f5!important;color:#333!important;border-color:#e2e8f0!important;page-break-inside:avoid;font-size:7.5pt!important}
+  #doc-content pre code{color:#333!important}
+  #doc-content :not(pre)>code{background:#f0f4f8!important;color:#c53030!important}
+  #doc-content blockquote{background:#ebf4ff!important;border-left-color:#3182ce!important}
+  #doc-content blockquote p,#doc-content blockquote strong{color:#1a202c!important}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" title="Toggle menu" onclick="toggleSidebar()">☰</button>
+  <div class="brand">
+    <div class="brand-icon">📋</div>
+    <div>
+      <div class="brand-name">PMP Topic Driller</div>
+      <div class="brand-sub">Study Brief Library</div>
+    </div>
+  </div>
+  <div class="topic-title-bar"><span id="active-topic-name"></span></div>
+  <div class="font-ctrl">
+    <button class="btn-font btn-font-a-" id="btn-font-dec" onclick="adjFont(-1)" title="Smaller text">A−</button>
+    <span class="font-val" id="font-val">100%</span>
+    <button class="btn-font btn-font-a+" id="btn-font-inc" onclick="adjFont(1)" title="Larger text">A+</button>
+  </div>
+  <div class="topbar-right">
+    <button class="btn btn-docx" id="btn-docx" disabled onclick="downloadDocx()">⬇ <span class="btn-label">DOCX</span></button>
+    <button class="btn btn-pdf"  id="btn-pdf"  disabled onclick="downloadPdf()">⬇ <span class="btn-label">PDF</span></button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div id="sidebar-scroll"></div>
+    <div class="sidebar-footer">Files fetched on click · User Choice stored locally</div>
+    <input type="file" id="file-input" accept=".md,.txt" multiple hidden onchange="handleFiles(event)">
+    <input type="file" id="zip-input" accept=".zip" hidden onchange="handleZipImport(event)">
+  </aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <main class="content-area" id="content-area">
+    <div id="empty-state">
+      <div class="es-icon">📚</div>
+      <div class="es-title">Select a topic</div>
+      <div class="es-sub">Pick any topic from the left panel to begin studying.</div>
+    </div>
+    <nav id="section-nav"></nav>
+    <div id="doc-wrapper"><div id="doc-content"></div></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── File Manifest ──────────────────────────────────────────────
+const ECO_BASE = 'ECO Topic Drilling/';
+const PG_BASE  = 'Process Group Drilling/';
+
+const MANIFEST = {
+  eco: {
+    'People': [
+      'People_01_Manage_Conflict.md',
+      'People_02_Lead_a_Team.md',
+      'People_03_Support_Team_Performance.md',
+      'People_04_Empower_Team_Members_and_Stakeholders.md',
+      'People_05_Ensure_Team_Members_Stakeholders_Adequately_Trained.md',
+      'People_06_Build_a_Team.md',
+      'People_07_Address_and_Remove_Impediments.md',
+      'People_08_Negotiate_Project_Agreements.md',
+      'People_09_Collaborate_with_Stakeholders.md',
+      'People_10_Build_Shared_Understanding.md',
+      'People_11_Engage_and_Support_Virtual_Teams.md',
+      'People_12_Define_Team_Ground_Rules.md',
+      'People_13_Mentor_Relevant_Stakeholders.md',
+      'People_14_Promote_Team_Performance_Through_Emotional_Intelligence.md',
+    ],
+    'Process': [
+      'Process_01_Execute_Project_with_Urgency.md',
+      'Process_02_Manage_Communications.md',
+      'Process_03_Assess_and_Manage_Risks.md',
+      'Process_04_Engage_Stakeholders.md',
+      'Process_05_Plan_and_Manage_Budget_and_Resources.md',
+      'Process_06_Plan_and_Manage_Schedule.md',
+      'Process_07_Plan_and_Manage_Quality.md',
+      'Process_08_Plan_and_Manage_Scope.md',
+      'Process_09_Integrate_Project_Planning_Activities.md',
+      'Process_10_Manage_Project_Changes.md',
+      'Process_11_Plan_and_Manage_Procurement.md',
+      'Process_12_Manage_Project_Artifacts.md',
+      'Process_13_Determine_Appropriate_Methodology.md',
+      'Process_14_Establish_Project_Governance_Structure.md',
+      'Process_15_Manage_Project_Issues.md',
+      'Process_16_Ensure_Knowledge_Transfer_for_Project_Continuity.md',
+      'Process_17_Plan_and_Manage_Closure_or_Transitions.md',
+    ],
+    'Business Environment': [
+      'BusinessEnvironment_01_Plan_and_Manage_Project_Compliance.md',
+      'BusinessEnvironment_02_Evaluate_and_Deliver_Project_Benefits_and_Value.md',
+      'BusinessEnvironment_03_Evaluate_External_Environment_Changes.md',
+      'BusinessEnvironment_04_Support_Organizational_Change.md',
+    ],
+  },
+  pg: {
+    'Initiating': [
+      '1.1 Initiating_Develop Project Charter.md',
+      '1.2 Initiating_Identify Stakeholders.md',
+    ],
+    'Planning': [
+      '2.1 Planning_Develop Project Management Plan.md',
+      '2.2 Planning_Plan Scope Management.md',
+      '2.3 Planning_Collect Requirements.md',
+      '2.4 Planning_Define Scope.md',
+      '2.5 Planning_Create WBS.md',
+      '2.6 Planning_Plan Schedule Management.md',
+      '2.7 Planning_Define Activities.md',
+      '2.8 Planning_Sequence Activities.md',
+      '2.9 Planning_Estimate Activity Durations.md',
+      '2.10 Planning_Develop Schedule.md',
+      '2.11 Planning_Plan Cost Management.md',
+      '2.12 Planning_Estimate Costs.md',
+      '2.13 Planning_Determine Budget.md',
+      '2.14 Planning_Plan Quality Management.md',
+      '2.15 Planning_Plan Resource Management.md',
+      '2.16 Planning_Estimate Activity Resources.md',
+      '2.17 Planning_Plan Communications Management.md',
+      '2.18 Planning_Plan Risk Management.md',
+      '2.19 Planning_Identify Risks.md',
+      '2.20 Planning_Perform Qualitative Risk Analysis.md',
+      '2.21 Planning_Perform Quantitative Risk Analysis.md',
+      '2.22 Planning_Plan Risk Responses.md',
+      '2.23 Planning_Plan Procurement Management.md',
+      '2.24 Planning_Plan Stakeholder Engagement.md',
+    ],
+    'Executing': [
+      '3.1 Executing_Direct and Manage Project Work.md',
+      '3.2 Executing_Manage Project Knowledge.md',
+      '3.3 Executing_Manage Quality.md',
+      '3.4 Executing_Acquire Resources.md',
+      '3.5 Executing_Develop Team.md',
+      '3.6 Executing_Manage Team.md',
+      '3.7 Executing_Manage Communications.md',
+      '3.8 Executing_Implement Risk Responses.md',
+      '3.9 Executing_Conduct Procurements.md',
+      '3.10 Executing_Manage Stakeholder Engagement.md',
+    ],
+    'Monitoring & Controlling': [
+      '4.1 Monitoring and Controlling_Monitor and Control Project Work.md',
+      '4.2 Monitoring and Controlling_Perform Integrated Change Control.md',
+      '4.3 Monitoring and Controlling_Validate Scope.md',
+      '4.4 Monitoring and Controlling_Control Scope.md',
+      '4.5 Monitoring and Controlling_Control Schedule.md',
+      '4.6 Monitoring and Controlling_Control Costs.md',
+      '4.7 Monitoring and Controlling_Control Quality.md',
+      '4.8 Monitoring and Controlling_Control Resources.md',
+      '4.9 Monitoring and Controlling_Monitor Communications.md',
+      '4.10 Monitoring and Controlling_Monitor Risks.md',
+      '4.11 Monitoring and Controlling_Control Procurements.md',
+      '4.12 Monitoring and Controlling_Monitor Stakeholder Engagement.md',
+    ],
+    'Closing': [
+      '5.1 Closing_Close Project or Phase.md',
+    ],
+  },
+};
+
+// ── Display name helpers ──────────────────────────────────────
+function ecoName(f) {
+  return f.replace(/\.md$/i,'')
+          .replace(/^(People|Process|BusinessEnvironment)_\d+_/,'')
+          .replace(/_/g,' ');
+}
+function pgName(f) {
+  const m = f.match(/^(\d+\.\d+)\s+\w[\w\s]*?_(.+)\.md$/);
+  return m ? m[1]+' '+m[2] : f.replace(/\.md$/,'');
+}
+
+// ── State ────────────────────────────────────────────────────
+const segOpen    = { eco: true, pg: true, uc: true };
+const subsegOpen = {};
+function ssOpen(id) { return subsegOpen[id] !== false; }
+
+let activeKey = null;
+let _md = null, _displayName = null, _downloadName = null;
+
+// ── User Choice ───────────────────────────────────────────────
+const UC_KEY = 'pmp_uc_v2';
+let ucItems = [];
+function loadUC()  { try { ucItems = JSON.parse(localStorage.getItem(UC_KEY)||'[]'); } catch { ucItems=[]; } }
+function saveUC()  { try { localStorage.setItem(UC_KEY, JSON.stringify(ucItems)); } catch { showToast('Storage full.','err'); } }
+
+// ── Sidebar render ────────────────────────────────────────────
+function renderSidebar() {
+  document.getElementById('sidebar-scroll').innerHTML =
+    buildSegECO() + buildSegPG() + buildSegUC();
+}
+
+function buildSegECO() {
+  const total = Object.values(MANIFEST.eco).reduce((s,a)=>s+a.length,0);
+  const open  = segOpen.eco;
+  const icons = { People:'👥', Process:'⚙️', 'Business Environment':'🌍' };
+  let body = '';
+  for (const [ss, files] of Object.entries(MANIFEST.eco)) {
+    const sid = 'eco-'+ss.replace(/\s/g,'');
+    const sso = ssOpen(sid);
+    body += `<div class="subseg ${sso?'':'subseg-collapsed'}" data-ss="${H(sid)}">
+      <div class="subseg-header" data-toggle-ss="${H(sid)}">
+        <span class="subseg-label">${icons[ss]||''} ${H(ss)}</span>
+        <span class="subseg-count">${files.length}</span>
+        <span class="subseg-chevron">▾</span>
+      </div>
+      <div class="subseg-body ${sso?'':'hidden'}">
+        ${files.map(f=>{
+          const key='eco|'+ss+'|'+f;
+          return `<div class="file-item${activeKey===key?' active':''}" data-key="${H(key)}" data-path="${H(ECO_BASE+f)}" data-name="${H(ecoName(f))}">
+            <div class="file-dot"></div><div class="file-name">${H(ecoName(f))}</div></div>`;
+        }).join('')}
+      </div></div>`;
+  }
+  return `<div class="segment">
+    <div class="seg-header ${open?'':'seg-collapsed'}" data-toggle-seg="eco">
+      <span class="seg-name">📚 ECO Topic Drilling</span>
+      <span class="seg-count">${total}</span><span class="chevron">▾</span>
+    </div>
+    <div class="seg-body ${open?'':'hidden'}">${body}</div></div>`;
+}
+
+function buildSegPG() {
+  const total = Object.values(MANIFEST.pg).reduce((s,a)=>s+a.length,0);
+  const open  = segOpen.pg;
+  const icons = { Initiating:'🚀', Planning:'📋', Executing:'⚡', 'Monitoring & Controlling':'👁️', Closing:'🏁' };
+  let body = '';
+  for (const [grp, files] of Object.entries(MANIFEST.pg)) {
+    const sid = 'pg-'+grp.replace(/[\s&]/g,'');
+    const sso = ssOpen(sid);
+    body += `<div class="subseg ${sso?'':'subseg-collapsed'}" data-ss="${H(sid)}">
+      <div class="subseg-header" data-toggle-ss="${H(sid)}">
+        <span class="subseg-label">${icons[grp]||''} ${H(grp)}</span>
+        <span class="subseg-count">${files.length}</span>
+        <span class="subseg-chevron">▾</span>
+      </div>
+      <div class="subseg-body ${sso?'':'hidden'}">
+        ${files.map(f=>{
+          const key='pg|'+grp+'|'+f;
+          return `<div class="file-item${activeKey===key?' active':''}" data-key="${H(key)}" data-path="${H(PG_BASE+f)}" data-name="${H(pgName(f))}">
+            <div class="file-dot"></div><div class="file-name">${H(pgName(f))}</div></div>`;
+        }).join('')}
+      </div></div>`;
+  }
+  return `<div class="segment">
+    <div class="seg-header ${open?'':'seg-collapsed'}" data-toggle-seg="pg">
+      <span class="seg-name">📋 Process Group Drilling</span>
+      <span class="seg-count">${total}</span><span class="chevron">▾</span>
+    </div>
+    <div class="seg-body ${open?'':'hidden'}">${body}</div></div>`;
+}
+
+function buildSegUC() {
+  const open = segOpen.uc;
+  const items = ucItems.length === 0
+    ? `<div class="uc-empty">No files — click + Add MD to upload</div>`
+    : ucItems.map(t=>{
+        const key='uc|'+t.id;
+        return `<div class="uc-item${activeKey===key?' active':''}" data-uc="${H(t.id)}">
+          <div class="file-dot"></div>
+          <div class="file-name">${H(t.displayName)}</div>
+          <button class="uc-del" data-del-uc="${H(t.id)}" title="Remove">✕</button>
+        </div>`;
+      }).join('');
+  return `<div class="segment">
+    <div class="seg-header ${open?'':'seg-collapsed'}" data-toggle-seg="uc">
+      <span class="seg-name">⭐ User Choice Drilling</span>
+      <span class="seg-count">${ucItems.length}</span><span class="chevron">▾</span>
+    </div>
+    <div class="seg-body ${open?'':'hidden'}">
+      <div class="uc-toolbar">
+        <button class="uc-add-btn" id="uc-add-btn">＋ Add MD</button>
+        <button class="uc-io-btn" id="uc-export-btn" ${ucItems.length===0?'disabled':''} title="Download all as ZIP backup">⬇ Export ZIP</button>
+        <button class="uc-io-btn" id="uc-import-btn" title="Restore from ZIP backup">⬆ Import ZIP</button>
+      </div>
+      ${items}
+    </div></div>`;
+}
+
+// ── Event delegation ──────────────────────────────────────────
+document.getElementById('sidebar-scroll').addEventListener('click', e => {
+  const segBtn = e.target.closest('[data-toggle-seg]');
+  if (segBtn) {
+    const id = segBtn.dataset.toggleSeg;
+    segOpen[id] = !segOpen[id];
+    renderSidebar();
+    return;
+  }
+  const ssBtn = e.target.closest('[data-toggle-ss]');
+  if (ssBtn) {
+    const id = ssBtn.dataset.toggleSs;
+    subsegOpen[id] = !ssOpen(id);
+    const el = document.querySelector(`[data-ss="${id}"]`);
+    if (el) {
+      el.classList.toggle('subseg-collapsed', !subsegOpen[id]);
+      el.querySelector('.subseg-body').classList.toggle('hidden', !subsegOpen[id]);
+    }
+    return;
+  }
+  const delBtn = e.target.closest('[data-del-uc]');
+  if (delBtn) { deleteUC(delBtn.dataset.delUc); return; }
+
+  if (e.target.closest('#uc-add-btn'))     { triggerUpload(); return; }
+  if (e.target.closest('#uc-export-btn')) { exportUC(); return; }
+  if (e.target.closest('#uc-import-btn')) { triggerImport(); return; }
+
+  const fileItem = e.target.closest('[data-key]');
+  if (fileItem) { closeSidebar(); fetchAndRender(fileItem.dataset.path, fileItem.dataset.key, fileItem.dataset.name); return; }
+
+  const ucItem = e.target.closest('[data-uc]');
+  if (ucItem) { closeSidebar(); selectUC(ucItem.dataset.uc); return; }
+});
+
+// ── Fetch & render ────────────────────────────────────────────
+async function fetchAndRender(path, key, displayName) {
+  activeKey = key;
+  renderSidebar();
+  const dc = document.getElementById('doc-content');
+  dc.innerHTML = '<p style="color:var(--text-muted);padding:2rem 0">Loading…</p>';
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('doc-wrapper').classList.add('visible');
+  document.getElementById('btn-docx').disabled = true;
+  document.getElementById('btn-pdf').disabled  = true;
+  document.getElementById('active-topic-name').textContent = displayName;
+  try {
+    const res = await fetch(encodeURI(path));
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const text = await res.text();
+    applyContent(text, displayName, path.split('/').pop().replace(/\.md$/i,''));
+  } catch(err) {
+    dc.innerHTML = `<p style="color:var(--red);padding:2rem 0">
+      Could not load <code>${H(path)}</code><br><small>${H(err.message)}</small><br><br>
+      <small style="color:var(--text-muted)">Serve via HTTP, not file://. GitHub Pages works automatically.</small></p>`;
+    showToast('Load failed.','err');
+  }
+}
+
+function applyContent(markdown, displayName, downloadName) {
+  _md = markdown; _displayName = displayName; _downloadName = downloadName;
+  document.getElementById('doc-content').innerHTML = marked.parse(markdown);
+  document.getElementById('active-topic-name').textContent = displayName;
+  document.getElementById('btn-docx').disabled = false;
+  document.getElementById('btn-pdf').disabled  = false;
+  buildSectionNav();
+  document.getElementById('content-area').scrollTo({ top:0, behavior:'smooth' });
+}
+
+// ── User Choice ops ───────────────────────────────────────────
+function triggerUpload() { document.getElementById('file-input').value=''; document.getElementById('file-input').click(); }
+
+function handleFiles(e) {
+  const files = Array.from(e.target.files); if (!files.length) return;
+  let done = 0;
+  files.forEach(file => {
+    const r = new FileReader();
+    r.onload = ev => {
+      ingestUC(ev.target.result, file.name);
+      done++;
+      if (done===files.length) showToast(done===1?'Topic added.':`${done} topics added.`,'ok');
+    };
+    r.readAsText(file);
+  });
+}
+
+function ingestUC(content, fileName) {
+  const h1 = content.match(/^#\s+(.+)/m);
+  const displayName  = h1 ? h1[1].trim() : fileName.replace(/\.(md|txt)$/i,'');
+  const downloadName = fileName.replace(/\.(md|txt)$/i,'').trim();
+  const idx = ucItems.findIndex(t=>t.downloadName===downloadName);
+  const entry = {
+    id: idx!==-1 ? ucItems[idx].id : (Date.now().toString(36)+Math.random().toString(36).slice(2)),
+    displayName, downloadName, content, uploadedAt: new Date().toISOString()
+  };
+  if (idx!==-1) ucItems[idx]=entry; else ucItems.unshift(entry);
+  saveUC(); renderSidebar(); selectUC(entry.id);
+}
+
+function selectUC(id) {
+  const t = ucItems.find(t=>t.id===id); if (!t) return;
+  activeKey = 'uc|'+id;
+  renderSidebar();
+  applyContent(t.content, t.displayName, t.downloadName);
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('doc-wrapper').classList.add('visible');
+}
+
+function deleteUC(id) {
+  if (!confirm('Remove this topic?')) return;
+  ucItems = ucItems.filter(t=>t.id!==id); saveUC();
+  if (activeKey==='uc|'+id) { activeKey=null; _md=null; clearView(); }
+  renderSidebar(); showToast('Removed.','ok');
+}
+
+function clearView() {
+  document.getElementById('active-topic-name').textContent='';
+  document.getElementById('doc-content').innerHTML='';
+  document.getElementById('doc-wrapper').classList.remove('visible');
+  document.getElementById('section-nav').className='';
+  document.getElementById('section-nav').innerHTML='';
+  document.getElementById('btn-docx').disabled=true;
+  document.getElementById('btn-pdf').disabled=true;
+  document.getElementById('empty-state').style.display='';
+}
+
+// ── Section nav ───────────────────────────────────────────────
+function buildSectionNav() {
+  const nav = document.getElementById('section-nav');
+  const hs  = document.querySelectorAll('#doc-content h2');
+  if (!hs.length) { nav.className=''; nav.innerHTML=''; return; }
+  hs.forEach((h,i) => { h.id='sec'+i+'-'+h.textContent.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40); });
+  nav.innerHTML = '<span class="nav-lbl">Jump →</span>' +
+    Array.from(hs).map(h=>
+      `<a class="nav-link" href="#${h.id}" onclick="scrollSec(event,'${h.id}')">${H(h.textContent.replace(/^\d+\.\s*/,'').trim())}</a>`
+    ).join('');
+  nav.className='visible';
+}
+function scrollSec(e,id) {
+  e.preventDefault();
+  const el=document.getElementById(id); if (!el) return;
+  const a=document.getElementById('content-area');
+  a.scrollTo({top:el.offsetTop-document.getElementById('section-nav').offsetHeight-8,behavior:'smooth'});
+}
+
+// ── Exports ───────────────────────────────────────────────────
+function downloadPdf() {
+  if (!_md) return;
+  const prev=document.title; document.title=_downloadName||_displayName;
+  showToast('Opening print dialog — choose "Save as PDF".');
+  setTimeout(()=>{ window.print(); setTimeout(()=>{ document.title=prev; },1000); },350);
+}
+
+function downloadDocx() {
+  if (!_md) return;
+  if (typeof htmlDocx==='undefined') { showToast('DOCX library not loaded.','err'); return; }
+  const filename=(_downloadName||_displayName).trim();
+  const body=marked.parse(_md);
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+body{font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:11pt;color:#1a202c;line-height:1.65}
+h1{font-size:22pt;color:#1e3a5f;font-weight:900;text-align:center;border-bottom:3pt solid #3182ce;padding-bottom:8pt;margin-bottom:6pt}
+h2{font-size:13pt;color:#1e3a5f;font-weight:800;border-left:4pt solid #3182ce;padding:4pt 8pt;margin-top:20pt;background:#f0f7ff}
+h3{font-size:9pt;color:#2c5282;font-weight:800;text-transform:uppercase;border-bottom:.5pt solid #cbd5e0;padding-bottom:3pt;margin-top:14pt}
+h4{font-size:10pt;font-weight:700;margin:10pt 0 4pt}
+table{width:100%;border-collapse:collapse;margin:8pt 0;font-size:9pt}
+th{background:#1e3a5f;color:white;padding:5pt 8pt;text-align:left;font-weight:700}
+td{padding:4.5pt 8pt;border-bottom:.5pt solid #e2e8f0;vertical-align:top}
+tr:nth-child(even) td{background:#f7fafc}
+pre{background:#f5f5f5;padding:10pt 12pt;font-size:8pt;font-family:'Courier New',monospace}
+ul,ol{padding-left:16pt} li{margin:2pt 0}
+blockquote{border-left:3pt solid #3182ce;background:#ebf4ff;padding:6pt 10pt}
+strong{color:#1e3a5f} hr{border-top:.5pt solid #cbd5e0}
+</style></head><body>${body}</body></html>`;
+  try {
+    const blob=htmlDocx.asBlob(html,{orientation:'portrait',margins:{top:1080,right:1134,bottom:1080,left:1134}});
+    saveAs(blob,filename+'.docx'); showToast('Saved: '+filename+'.docx','ok');
+  } catch { showToast('DOCX failed.','err'); }
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function H(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function showToast(msg,type='') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast show '+type;
+  clearTimeout(t._t); t._t=setTimeout(()=>{t.className='toast '+type;},3200);
+}
+
+document.addEventListener('keydown',e=>{
+  if ((e.ctrlKey||e.metaKey)&&e.key==='d'&&_md) { e.preventDefault(); downloadDocx(); }
+});
+
+// ── Font size ─────────────────────────────────────────────────
+const FONT_SIZES = [75, 85, 95, 100, 110, 120, 130, 145];
+let fontIdx = 3; // default 100%
+
+function adjFont(dir) {
+  fontIdx = Math.max(0, Math.min(FONT_SIZES.length-1, fontIdx+dir));
+  applyFont();
+  localStorage.setItem('pmp_fontsize', fontIdx);
+}
+
+function applyFont() {
+  const pct = FONT_SIZES[fontIdx];
+  document.getElementById('doc-content').style.zoom = pct+'%';
+  const val = document.getElementById('font-val');
+  if (val) val.textContent = pct+'%';
+  const dec = document.getElementById('btn-font-dec');
+  const inc = document.getElementById('btn-font-inc');
+  if (dec) dec.disabled = fontIdx === 0;
+  if (inc) inc.disabled = fontIdx === FONT_SIZES.length-1;
+}
+
+function loadFont() {
+  const saved = parseInt(localStorage.getItem('pmp_fontsize'));
+  if (!isNaN(saved) && saved >= 0 && saved < FONT_SIZES.length) fontIdx = saved;
+  applyFont();
+}
+
+// ── Sidebar toggle (mobile) ───────────────────────────────────
+function toggleSidebar() {
+  const s = document.querySelector('.sidebar');
+  const b = document.getElementById('backdrop');
+  const open = s.classList.toggle('open');
+  b.classList.toggle('show', open);
+}
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('backdrop').classList.remove('show');
+}
+document.getElementById('backdrop').addEventListener('click', closeSidebar);
+
+// ── UC Export / Import ─────────────────────────────────────────
+async function exportUC() {
+  if (!ucItems.length) { showToast('Nothing to export.','err'); return; }
+  if (typeof JSZip === 'undefined') { showToast('JSZip not loaded.','err'); return; }
+  const zip = new JSZip();
+  ucItems.forEach(t => zip.file(t.downloadName+'.md', t.content));
+  const blob = await zip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{ level:6 } });
+  saveAs(blob, 'pmp_uc_backup.zip');
+  showToast('Exported '+ucItems.length+' topic'+(ucItems.length===1?'':'s')+'.','ok');
+}
+
+function triggerImport() {
+  document.getElementById('zip-input').value='';
+  document.getElementById('zip-input').click();
+}
+
+async function handleZipImport(e) {
+  const file = e.target.files[0]; if (!file) return;
+  if (typeof JSZip === 'undefined') { showToast('JSZip not loaded.','err'); return; }
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const entries = Object.values(zip.files).filter(f => !f.dir && /\.(md|txt)$/i.test(f.name));
+    if (!entries.length) { showToast('No .md files in ZIP.','err'); return; }
+    for (const entry of entries) {
+      const text = await entry.async('string');
+      const name = entry.name.split('/').pop();
+      ingestUC(text, name);
+    }
+    showToast(entries.length+' topic'+(entries.length===1?'':'s')+' imported.','ok');
+  } catch(err) { showToast('Import failed: '+err.message,'err'); }
+}
+
+// ── Init ──────────────────────────────────────────────────────
+marked.setOptions({ breaks:false, gfm:true });
+loadUC();
+loadFont();
+renderSidebar();
+</script>
+</body>
+</html>

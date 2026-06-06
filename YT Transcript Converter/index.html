@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YT Transcript Summarizer</title>
+
+<!-- Dependencies via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ===== DESIGN SYSTEM & THEMES ===== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Common variables */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.18);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  
+  /* Theme-specific variables (Dark Mode default) */
+  --bg: #0b0f19;
+  --panel-bg: rgba(22, 30, 49, 0.75);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --text: #cbd5e1;
+  --text-muted: #64748b;
+  --text-heading: #f8fafc;
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-dim: rgba(59, 130, 246, 0.1);
+  --accent: #10b981;
+  --accent-hover: #34d399;
+  --accent-dim: rgba(16, 185, 129, 0.1);
+  --card-bg: #111827;
+  --input-bg: #1f2937;
+  --input-border: #374151;
+  --danger: #ef4444;
+  --danger-hover: #f87171;
+  --danger-dim: rgba(239, 68, 68, 0.1);
+  --toast-bg: #1f2937;
+}
+
+/* Light Theme Variables */
+[data-theme="light"] {
+  --bg: #f3f4f6;
+  --panel-bg: rgba(255, 255, 255, 0.85);
+  --panel-border: rgba(0, 0, 0, 0.08);
+  --text: #374151;
+  --text-muted: #6b7280;
+  --text-heading: #111827;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-dim: rgba(37, 99, 235, 0.08);
+  --accent: #059669;
+  --accent-hover: #047857;
+  --accent-dim: rgba(5, 150, 105, 0.08);
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --danger-dim: rgba(220, 38, 38, 0.08);
+  --toast-bg: #ffffff;
+}
+
+/* ===== BASE STYLES ===== */
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--input-border);
+  border-radius: var(--radius-sm);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ===== APP BAR ===== */
+.app-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: var(--panel-bg);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--panel-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow-sm);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-icon {
+  font-size: 1.8rem;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.brand-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--text-heading);
+  letter-spacing: -0.02em;
+}
+
+.brand-subtitle {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 1px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.1rem;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #ffffff;
+}
+.btn-primary:hover {
+  background: var(--primary-hover);
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: #ffffff;
+}
+.btn-accent:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+}
+
+.btn-danger {
+  background: var(--danger-dim);
+  color: var(--danger-hover);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+.btn-danger:hover {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--input-border);
+}
+.btn-ghost:hover {
+  background: var(--input-bg);
+  border-color: var(--text-muted);
+}
+
+.btn-icon-only {
+  padding: 0.55rem;
+  border-radius: 50%;
+  aspect-ratio: 1;
+}
+
+/* ===== MAIN LAYOUT ===== */
+.main-container {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: calc(100vh - 65px);
+  position: relative;
+}
+
+/* Sidebar / Settings Configuration Pane */
+.settings-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid var(--panel-border);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+  position: sticky;
+  top: 65px;
+  height: calc(100vh - 65px);
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-heading);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 2px solid var(--primary-dim);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.section-title svg {
+  color: var(--primary);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.form-group label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-wrapper svg {
+  position: absolute;
+  left: 0.85rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  width: 16px;
+  height: 16px;
+}
+
+.input-wrapper select,
+.input-wrapper input {
+  padding-left: 2.35rem;
+}
+
+input[type="text"],
+input[type="password"],
+select,
+textarea {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: var(--transition);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.api-help {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-top: 0.2rem;
+}
+
+.api-help a {
+  color: var(--primary-hover);
+  text-decoration: none;
+  font-weight: 600;
+}
+.api-help a:hover {
+  text-decoration: underline;
+}
+
+/* Toggle Switch Styling */
+.toggle-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.toggle-group:hover {
+  border-color: var(--primary-dim);
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.toggle-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+.toggle-desc {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--input-border);
+  transition: .3s;
+  border-radius: 34px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--primary);
+}
+
+input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+/* Content Area Layout */
+.content-panel {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+  max-width: 1080px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Tabs UI */
+.tabs-container {
+  display: flex;
+  border-bottom: 2px solid var(--panel-border);
+  gap: 1.5rem;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 0.75rem 0.25rem;
+  cursor: pointer;
+  position: relative;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tab-btn:hover {
+  color: var(--text-heading);
+}
+
+.tab-btn.active {
+  color: var(--primary);
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: var(--primary);
+  border-radius: 4px;
+}
+
+.tab-content {
+  display: none;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.tab-content.active {
+  display: flex;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Paste / input controls */
+.textarea-group textarea {
+  height: 280px;
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.input-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Loading Spinner Overlay */
+.loading-overlay {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 4rem 2rem;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  margin-top: 1rem;
+}
+
+.spinner-ring {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--primary-dim);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 1.5rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-status {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text-heading);
+  margin-bottom: 0.5rem;
+}
+
+.loading-detail {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+/* Output Preview Area */
+.output-card {
+  display: none;
+  background: var(--card-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  margin-bottom: 4rem;
+}
+
+.output-header {
+  padding: 1rem 1.5rem;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.output-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.output-indicator {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.output-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--text-heading);
+}
+
+.output-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Output Document Styles (Light paper layout in both themes for print readability) */
+.output-body {
+  padding: 3rem 4rem;
+  background: #ffffff;
+  color: #1e293b;
+  line-height: 1.75;
+  font-size: 0.96rem;
+  overflow-x: auto;
+}
+
+/* Document specific styling */
+.output-body h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  color: #1e3a8a;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 0.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 3px solid #3b82f6;
+  line-height: 1.25;
+}
+
+.output-body h1 + h3 {
+  text-align: center;
+  color: #64748b;
+  font-size: 0.88rem;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  margin-bottom: 2rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.output-body h2 {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: #1e3a8a;
+  font-weight: 800;
+  margin: 2.2rem 0 0.85rem;
+  padding: 0.5rem 0.85rem;
+  border-left: 4px solid #3b82f6;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.08) 0%, transparent 100%);
+  border-radius: 0 4px 4px 0;
+}
+
+.output-body h3 {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: #2563eb;
+  font-weight: 800;
+  margin: 1.5rem 0 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.25rem;
+}
+
+.output-body h4 {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  color: #0f172a;
+  font-weight: 700;
+  margin: 1rem 0 0.4rem;
+}
+
+.output-body p {
+  margin: 0.65rem 0;
+}
+
+.output-body strong {
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.output-body hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 1.75rem 0;
+}
+
+.output-body ul, .output-body ol {
+  padding-left: 1.6rem;
+  margin: 0.6rem 0;
+}
+
+.output-body li {
+  margin: 0.3rem 0;
+}
+
+.output-body ul li::marker {
+  color: #3b82f6;
+}
+
+/* Tables */
+.output-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.85rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.output-body thead tr th {
+  background: #1e3a8a;
+  color: #ffffff;
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.output-body tbody tr td {
+  padding: 0.58rem 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+  line-height: 1.55;
+  color: #334155;
+}
+
+.output-body tbody tr:nth-child(odd) td {
+  background: #f8fafc;
+}
+
+.output-body tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Blockquotes / Callout Boxes for Value-Adds and Examples */
+.output-body blockquote {
+  border-left: 4px solid #3b82f6;
+  background: #eff6ff;
+  padding: 0.9rem 1.2rem;
+  margin: 1.25rem 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.output-body blockquote p {
+  margin: 0.25rem 0;
+  color: #1e40af;
+  font-size: 0.9rem;
+}
+
+/* Green blockquote for Examples */
+.output-body blockquote.example {
+  border-left-color: #10b981;
+  background: #ecfdf5;
+}
+
+.output-body blockquote.example p {
+  color: #065f46;
+}
+
+.output-body code {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  background: #f1f5f9;
+  color: #b91c1c;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+}
+
+/* ===== TOAST NOTIFICATION ===== */
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 1000;
+  background: var(--toast-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text-heading);
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transform: translateY(20px);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+  pointer-events: none;
+  max-width: 350px;
+}
+
+.toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.toast-success {
+  border-left: 4px solid var(--accent);
+}
+
+.toast-error {
+  border-left: 4px solid var(--danger);
+}
+
+.toast-info {
+  border-left: 4px solid var(--primary);
+}
+
+/* ===== PRINT STYLES ===== */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  
+  .app-bar,
+  .settings-panel,
+  .tabs-container,
+  .tab-content,
+  .loading-overlay,
+  .output-header,
+  .toast {
+    display: none !important;
+  }
+  
+  .main-container {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+  }
+  
+  .content-panel {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+  
+  .output-card {
+    display: block !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .output-body {
+    padding: 0 !important;
+    font-size: 11pt !important;
+    line-height: 1.6 !important;
+  }
+  
+  @page {
+    size: A4;
+    margin: 2cm;
+  }
+  
+  .output-body h1 { page-break-after: avoid; }
+  .output-body h2 { page-break-before: auto; page-break-after: avoid; }
+  .output-body h3 { page-break-after: avoid; }
+}
+
+/* Responsive fixes */
+@media (max-width: 960px) {
+  .main-container {
+    grid-template-columns: 1fr;
+  }
+  .settings-panel {
+    position: relative;
+    top: 0;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--panel-border);
+  }
+}
+</style>
+</head>
+<body>
+
+  <!-- ===== APP BAR ===== -->
+  <header class="app-bar">
+    <div class="brand">
+      <div class="brand-icon">🎬</div>
+      <div class="brand-info">
+        <h1 class="brand-title">YT Transcript Summarizer</h1>
+        <span class="brand-subtitle">Smart Summaries &bull; Value Adds &bull; Examples</span>
+      </div>
+    </div>
+    
+    <div class="controls">
+      <button class="btn btn-ghost btn-icon-only" id="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
+        <!-- Sun Icon (Light Mode) -->
+        <svg id="theme-sun" style="display:none;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        <!-- Moon Icon (Dark Mode) -->
+        <svg id="theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== MAIN CONTAINER ===== -->
+  <div class="main-container">
+    
+    <!-- Sidebar: Settings Panel -->
+    <aside class="settings-panel">
+      
+      <!-- Section: API Credentials -->
+      <div class="form-group">
+        <h2 class="section-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          Credentials
+        </h2>
+        <label for="api-key">Gemini API Key</label>
+        <div class="input-wrapper">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+          <input type="password" id="api-key" placeholder="AIzaSy..." oninput="saveApiKey()">
+        </div>
+        <p class="api-help">Stored locally in your browser. Get a free key at <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>.</p>
+      </div>
+
+      <!-- Section: Model Settings -->
+      <div class="form-group">
+        <h2 class="section-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+          Model Settings
+        </h2>
+        
+        <label for="model-select">Gemini Model</label>
+        <div class="input-wrapper">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.5 1z"></path></svg>
+          <select id="model-select">
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Default)</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro (Best Quality)</option>
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Section: Prompt Customization -->
+      <div class="form-group">
+        <h2 class="section-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          Options
+        </h2>
+
+        <!-- PMP Exam Toggle -->
+        <div class="toggle-group">
+          <div class="toggle-info">
+            <span class="toggle-label">PMP Exam Focus</span>
+            <span class="toggle-desc">Aligns summaries with PMBOK 7 &amp; PMI mindset</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="pmp-focus" onchange="togglePmpUI()">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <label for="custom-rules" style="margin-top:0.5rem;">Custom Prompt Instructions</label>
+        <textarea id="custom-rules" rows="3" placeholder="Add specific formatting rules, key topics to highlight, or custom directions here..."></textarea>
+      </div>
+
+    </aside>
+
+    <!-- Main Content Panel -->
+    <main class="content-panel">
+      
+      <!-- Tabs header -->
+      <nav class="tabs-container">
+        <button class="tab-btn active" onclick="switchTab('url-tab')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+          Extract via YouTube URL
+        </button>
+        <button class="tab-btn" onclick="switchTab('paste-tab')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+          Paste Raw Transcript
+        </button>
+      </nav>
+
+      <!-- URL Ingestion Tab Content -->
+      <section class="tab-content active" id="url-tab">
+        <div class="form-group">
+          <label for="yt-url">YouTube Link</label>
+          <input type="text" id="yt-url" placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ">
+          <p class="input-desc">Paste the link of the YouTube video. We will auto-extract captions using a client-side CORS proxy.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-extract" onclick="processFromUrl()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Fetch &amp; Summarize
+        </button>
+      </section>
+
+      <!-- Manual Paste Tab Content -->
+      <section class="tab-content" id="paste-tab">
+        <div class="form-group textarea-group">
+          <label for="raw-transcript">Transcript Content</label>
+          <textarea id="raw-transcript" placeholder="Paste the raw text transcript here (timestamps are okay, we'll strip them!)."></textarea>
+          <p class="input-desc">Perfect fallback if YouTube auto-fetching fails, or if you already have the script copied from YouTube's "Show Transcript" drawer.</p>
+        </div>
+        
+        <div class="form-group" style="margin-bottom:0.5rem;">
+          <label for="manual-title">Video Title (Optional)</label>
+          <input type="text" id="manual-title" placeholder="e.g. Stakeholder Engagement Strategies">
+        </div>
+
+        <button class="btn btn-primary" id="btn-paste-summarize" onclick="processFromTextarea()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          Summarize Transcript
+        </button>
+      </section>
+
+      <!-- Loading State Panel -->
+      <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner-ring"></div>
+        <div class="loading-status" id="loading-status">Fetching Video Details...</div>
+        <div class="loading-detail" id="loading-detail">Connecting to CORS proxies to extract captions track. This may take up to 15 seconds.</div>
+      </div>
+
+      <!-- Preview Output Card -->
+      <div class="output-card" id="output-card">
+        <div class="output-header">
+          <div class="output-title-wrapper">
+            <span class="output-indicator"></span>
+            <span class="output-title" id="output-badge">Generated Study Summary</span>
+          </div>
+          
+          <div class="output-actions">
+            <button class="btn btn-ghost" onclick="copyToClipboard()" title="Copy Markdown to Clipboard">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              Copy
+            </button>
+            <button class="btn btn-ghost" onclick="downloadMd()" title="Download raw Markdown (.md) file">
+              📁 MD
+            </button>
+            <button class="btn btn-accent" onclick="downloadDocx()" title="Export to Word Document (.docx)">
+              💾 DOCX
+            </button>
+            <button class="btn btn-danger" onclick="downloadPdf()" title="Print/Export to PDF">
+              🖨️ PDF
+            </button>
+          </div>
+        </div>
+        
+        <!-- Document page preview -->
+        <article class="output-body" id="rendered-output"></article>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Toast Alert -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ===== SCRIPTS & LOGIC ===== -->
+  <script>
+    // --- Global State ---
+    let currentSummaryMarkdown = "";
+    let activeTabId = "url-tab";
+    let targetFileName = "YT_Summary";
+    let systemTheme = "dark";
+
+    // --- marked config ---
+    marked.setOptions({ breaks: true, gfm: true });
+
+    // --- On Load Init ---
+    window.onload = function() {
+      // 1. Retrieve API Key
+      const key = localStorage.getItem("gemini_api_key");
+      if (key) {
+        document.getElementById("api-key").value = key;
+      }
+      
+      // 2. Retrieve PMP Focus state
+      const pmpState = localStorage.getItem("summarizer_pmp_focus") === "true";
+      document.getElementById("pmp-focus").checked = pmpState;
+      togglePmpUI(false); // don't show toast on load
+      
+      // 3. Load UI Theme preference
+      const savedTheme = localStorage.getItem("summarizer_theme") || "dark";
+      setTheme(savedTheme);
+    };
+
+    // --- LocalStorage API Key ---
+    function saveApiKey() {
+      const key = document.getElementById("api-key").value.trim();
+      localStorage.setItem("gemini_api_key", key);
+    }
+
+    // --- PMP UI handler ---
+    function togglePmpUI(showFeedback = true) {
+      const isChecked = document.getElementById("pmp-focus").checked;
+      localStorage.setItem("summarizer_pmp_focus", isChecked);
+      
+      const badge = document.getElementById("output-badge");
+      if (isChecked) {
+        badge.textContent = "Formatted PMP Exam Brief";
+        if (showFeedback) showToast("PMP Exam Focus activated! Output will map to PMBOK 7 & ECO.", "info");
+      } else {
+        badge.textContent = "Generated Study Summary";
+        if (showFeedback) showToast("Standard summary focus activated.", "info");
+      }
+    }
+
+    // --- Tab Switcher ---
+    function switchTab(tabId) {
+      activeTabId = tabId;
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.classList.remove("active");
+      });
+      document.querySelectorAll(".tab-content").forEach(c => {
+        c.classList.remove("active");
+      });
+
+      // Set active
+      const activeBtn = Array.from(document.querySelectorAll(".tab-btn")).find(b => 
+        b.textContent.includes(tabId === "url-tab" ? "Extract via YouTube URL" : "Paste Raw Transcript")
+      );
+      if (activeBtn) activeBtn.classList.add("active");
+      document.getElementById(tabId).classList.add("active");
+    }
+
+    // --- Toast Alerts ---
+    function showToast(message, type = "success") {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.className = `toast show toast-${type}`;
+      setTimeout(() => {
+        toast.className = "toast";
+      }, 3500);
+    }
+
+    // --- Theme Switcher ---
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      const next = current === "dark" ? "light" : "dark";
+      setTheme(next);
+    }
+
+    function setTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem("summarizer_theme", theme);
+      
+      const sun = document.getElementById("theme-sun");
+      const moon = document.getElementById("theme-moon");
+      
+      if (theme === "light") {
+        sun.style.display = "block";
+        moon.style.display = "none";
+      } else {
+        sun.style.display = "none";
+        moon.style.display = "block";
+      }
+    }
+
+    // --- UI State Managers ---
+    function setLoader(visible, status = "", detail = "") {
+      const loader = document.getElementById("loading-overlay");
+      const submit1 = document.getElementById("btn-extract");
+      const submit2 = document.getElementById("btn-paste-summarize");
+      
+      if (visible) {
+        loader.style.display = "flex";
+        document.getElementById("loading-status").textContent = status;
+        document.getElementById("loading-detail").textContent = detail;
+        submit1.disabled = true;
+        submit2.disabled = true;
+      } else {
+        loader.style.display = "none";
+        submit1.disabled = false;
+        submit2.disabled = false;
+      }
+    }
+
+    // --- URL Extractors ---
+    function extractVideoId(url) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    // --- Scrape YouTube Transcript client side ---
+    async function fetchTranscript(videoUrl) {
+      const videoId = extractVideoId(videoUrl);
+      if (!videoId) {
+        throw new Error("Invalid YouTube URL. Please make sure it contains a valid video ID.");
+      }
+
+      setLoader(true, "Fetching Video Page...", "Connecting via client-side CORS proxy...");
+
+      const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(watchUrl)}`;
+
+      let response;
+      try {
+        response = await fetch(proxyUrl);
+      } catch (e) {
+        throw new Error("Failed to reach the CORS proxy. Please check your internet connection or try pasting the raw transcript directly.");
+      }
+
+      if (!response.ok) {
+        throw new Error("Proxy response error. YouTube watch page might be temporarily blocked. Please paste transcript manually.");
+      }
+
+      const json = await response.json();
+      const html = json.contents;
+      if (!html) {
+        throw new Error("Received empty content from CORS proxy. The video might be private or region-restricted.");
+      }
+
+      setLoader(true, "Parsing Player Data...", "Extracting YouTube timedtext captions JSON object...");
+
+      // Find ytInitialPlayerResponse
+      let playerResponseJson = null;
+      
+      // Method 1: Regex
+      const regex = /ytInitialPlayerResponse\s*=\s*({.+?});/s;
+      const match = html.match(regex);
+      if (match) {
+        try {
+          playerResponseJson = JSON.parse(match[1]);
+        } catch(e) {}
+      }
+      
+      // Method 2: Match brackets manually (failsafe if script layout has trailing comments/semicolons)
+      if (!playerResponseJson) {
+        const startMarker = 'ytInitialPlayerResponse = ';
+        const startIdx = html.indexOf(startMarker);
+        if (startIdx !== -1) {
+          let depth = 0;
+          let jsonStart = startIdx + startMarker.length;
+          let jsonEnd = -1;
+          for (let i = jsonStart; i < html.length; i++) {
+            if (html[i] === '{') depth++;
+            else if (html[i] === '}') {
+              depth--;
+              if (depth === 0) {
+                jsonEnd = i + 1;
+                break;
+              }
+            }
+          }
+          if (jsonEnd !== -1) {
+            try {
+              playerResponseJson = JSON.parse(html.substring(jsonStart, jsonEnd));
+            } catch (e) {}
+          }
+        }
+      }
+
+      if (!playerResponseJson) {
+        throw new Error("Failed to extract video player response. This video might not have interactive data. Try pasting the transcript manually.");
+      }
+
+      const captionTracks = playerResponseJson.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (!captionTracks || captionTracks.length === 0) {
+        throw new Error("No captions/transcripts found for this video. If the video does have captions, YouTube may be blocking external extractors. Copying & pasting manually is recommended.");
+      }
+
+      // Order tracks: 1. English ('en'), 2. Any track
+      const track = captionTracks.find(t => t.languageCode === 'en') || captionTracks[0];
+      const captionsUrl = track.baseUrl;
+      const videoTitle = playerResponseJson.videoDetails?.title || "YouTube Study Brief";
+
+      setLoader(true, "Downloading Captions...", `Fetching '${track.name.simpleText || 'default'}' track XML...`);
+
+      const capProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(captionsUrl)}`;
+      const capResponse = await fetch(capProxyUrl);
+      if (!capResponse.ok) {
+        throw new Error("Failed to fetch caption XML from YouTube servers.");
+      }
+      
+      const capJson = await capResponse.json();
+      const xmlText = capJson.contents;
+
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+      const textElements = xmlDoc.getElementsByTagName("text");
+      
+      if (textElements.length === 0) {
+        throw new Error("Empty caption track. No dialogue lines detected.");
+      }
+
+      let lines = [];
+      for (let i = 0; i < textElements.length; i++) {
+        const txt = textElements[i].textContent;
+        // Decode html entities
+        const decoded = txt
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&apos;/g, "'");
+        lines.push(decoded);
+      }
+
+      return {
+        title: videoTitle,
+        channel: playerResponseJson.videoDetails?.author || "YouTube Creator",
+        transcript: lines.join(" ")
+      };
+    }
+
+    // --- Core Processing Hooks ---
+    async function processFromUrl() {
+      const url = document.getElementById("yt-url").value.trim();
+      if (!url) {
+        showToast("Please enter a valid YouTube URL.", "error");
+        return;
+      }
+
+      const apiKey = document.getElementById("api-key").value.trim();
+      if (!apiKey) {
+        showToast("Gemini API Key is required. Please check your credentials panel.", "error");
+        return;
+      }
+
+      try {
+        const info = await fetchTranscript(url);
+        showToast("Transcript fetched successfully!");
+        
+        targetFileName = info.title
+          .replace(/[^a-z0-9\s-]/gi, '')
+          .trim()
+          .replace(/\s+/g, '_')
+          .substring(0, 50) || "YT_Summary";
+
+        await runSummarization(info.transcript, info.title, info.channel, apiKey);
+      } catch (err) {
+        setLoader(false);
+        showToast(err.message, "error");
+      }
+    }
+
+    async function processFromTextarea() {
+      const text = document.getElementById("raw-transcript").value.trim();
+      if (!text) {
+        showToast("Please paste the transcript content first.", "error");
+        return;
+      }
+
+      const apiKey = document.getElementById("api-key").value.trim();
+      if (!apiKey) {
+        showToast("Gemini API Key is required. Please check your credentials panel.", "error");
+        return;
+      }
+
+      let title = document.getElementById("manual-title").value.trim();
+      if (!title) title = "Pasted Study Brief Summary";
+      
+      targetFileName = title
+        .replace(/[^a-z0-9\s-]/gi, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .substring(0, 50) || "YT_Summary";
+
+      try {
+        await runSummarization(text, title, "Pasted Transcript", apiKey);
+      } catch (err) {
+        setLoader(false);
+        showToast(err.message, "error");
+      }
+    }
+
+    // --- AI Summarizer using Gemini API ---
+    async function runSummarization(rawText, title, creator, apiKey) {
+      setLoader(true, "Summarizing with Gemini...", "Sending clean transcript and generating segment notes...");
+
+      // Clean raw text (strip timestamps like [00:12] or 0:12 if present)
+      const cleanText = rawText
+        .replace(/\[\d{1,2}:\d{2}(:\d{2})?\]/g, "")
+        .replace(/\d{1,2}:\d{2}(:\d{2})?/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const model = document.getElementById("model-select").value;
+      const isPmp = document.getElementById("pmp-focus").checked;
+      const customRules = document.getElementById("custom-rules").value.trim();
+
+      // Formulate Prompt
+      let systemPrompt = "";
+      if (isPmp) {
+        systemPrompt = `You are a PMP Exam Coach and Senior Project Manager. Your objective is to extract concepts from the following transcript, organize them into structured, logical segment categories, and output a premium study brief aligned with PMBOK 7 and the PMP Exam Content Outline (ECO) (focusing on People, Process, and Business Environment).`;
+      } else {
+        systemPrompt = `You are an expert learning specialist. Your objective is to extract concepts from the following transcript, organize them into structured, logical segment categories, and output a high-yield study brief that is clear and comprehensive.`;
+      }
+
+      let promptText = `
+${systemPrompt}
+
+## Video Information:
+- **Title**: ${title}
+- **Creator/Channel**: ${creator}
+
+## Custom Guidelines to follow:
+${customRules ? `- ${customRules}` : "- Focus on maximum knowledge retention and ease of understanding."}
+- Use rich, clear structure. Do not speak in meta-phrases (e.g. "the speaker states", "the video covers"). Instead, present facts and concepts directly as educational study material.
+
+## Required Output Structure:
+Create a single markdown document. Format exactly as follows:
+
+# PMP Exam Master Brief: ${title}  (If PMP focus is enabled, else use '# Study Guide: ${title}')
+### Creator: ${creator} | Date Generated: ${new Date().toLocaleDateString()}
+
+---
+
+## 1. Executive Snapshot
+Provide a dense 5-sentence snapshot explaining the absolute core message of this video and why it is critical for students to learn. State its real-world value.
+
+---
+
+## 2. Structured Subject Areas
+
+For each major logical segment or chapter in the transcript, create a H2 heading (e.g., '## Topic / Chapter Name'). Within each H2 section, write the following elements:
+
+### A. Key Core Takeaways
+- Output **high-yield, dense bullet points** summarizing the most important knowledge.
+- **Bold** key terminology.
+
+### B. Concept Explanations (Value-Add)
+- Create a Markdown blockquote (\`>\` format) detailing the most complex concepts introduced in this segment.
+- Add value by explaining technical terms, formulas, or methodologies in simple, rich academic language, going beyond a literal translation of the video.
+
+### C. Real-World Practical Examples
+- Provide a dedicated Markdown blockquote using custom styling markers (\`> *Example:* ...\` or similar) describing a **short, concrete, practical real-world scenario** that illustrates the concept clearly. Make it relatable and immediate.
+
+---
+
+## 3. High-Yield Terms & Concepts
+- Provide a Markdown table detailing key terms, definitions, and common pitfalls/traps to avoid.
+  - Columns: | Term / Acronym | Deep Explanation | Key Trap / Pitfall to Avoid |
+  - Minimum 5 terms.
+
+---
+
+## 4. 60-Second Reflex Review
+- A bulleted list of 5-8 quick-fire, morning-of-exam style flashcard rules.
+- Close with a single bolded **In one sentence:** reflex phrase.
+
+---
+
+Here is the YouTube Transcript:
+${cleanText}
+`;
+
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: promptText
+              }]
+            }],
+            generationConfig: {
+              temperature: 0.2,
+              topK: 40,
+              topP: 0.95,
+              maxOutputTokens: 8192
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error?.message || "Gemini API error. Please verify your API Key and limits.");
+        }
+
+        const data = await response.json();
+        const outputText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (!outputText) {
+          throw new Error("Gemini returned an empty response. Try lowering your prompt requirements or shortening the text.");
+        }
+
+        currentSummaryMarkdown = outputText;
+        
+        // Parse blockquotes to differentiate standard value-adds from examples
+        let parsedHtml = marked.parse(outputText);
+        
+        // Post-processing: Add class 'example' to blockquotes that start with "*Example:*" or "Example:"
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = parsedHtml;
+        const blockquotes = tempDiv.getElementsByTagName("blockquote");
+        for (let b of blockquotes) {
+          const innerTxt = b.textContent.trim().toLowerCase();
+          if (innerTxt.startsWith("example:") || innerTxt.startsWith("*example:*") || innerTxt.startsWith("_example:_")) {
+            b.classList.add("example");
+          }
+        }
+        
+        document.getElementById("rendered-output").innerHTML = tempDiv.innerHTML;
+        document.getElementById("output-card").style.display = "block";
+        
+        setLoader(false);
+        showToast("Summary generated successfully!", "success");
+        
+        // Scroll to output
+        document.getElementById("output-card").scrollIntoView({ behavior: "smooth" });
+
+      } catch (err) {
+        setLoader(false);
+        showToast(err.message, "error");
+      }
+    }
+
+    // --- Export Actions ---
+    
+    // 1. Copy Markdown
+    function copyToClipboard() {
+      if (!currentSummaryMarkdown) return;
+      navigator.clipboard.writeText(currentSummaryMarkdown).then(() => {
+        showToast("Markdown copied to clipboard!", "success");
+      }).catch(err => {
+        showToast("Failed to copy text.", "error");
+      });
+    }
+
+    // 2. Download Markdown (.md)
+    function downloadMd() {
+      if (!currentSummaryMarkdown) return;
+      const blob = new Blob([currentSummaryMarkdown], { type: "text/markdown;charset=utf-8" });
+      saveAs(blob, `${targetFileName}.md`);
+      showToast("Markdown file downloaded.", "success");
+    }
+
+    // 3. Download DOCX
+    function downloadDocx() {
+      if (!currentSummaryMarkdown) return;
+      if (typeof htmlDocx === 'undefined') {
+        showToast("DOCX conversion library not loaded. Check internet connection.", "error");
+        return;
+      }
+
+      // Convert Markdown to clean html
+      const bodyHtml = marked.parse(currentSummaryMarkdown);
+
+      // Create a themed Word Document layout
+      const fullDocHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+    font-size: 11pt; color: #1e293b; line-height: 1.65; margin: 0;
+  }
+  h1 {
+    font-size: 22pt; color: #1e3a8a; font-weight: 900;
+    text-align: center;
+    border-bottom: 3pt solid #3b82f6;
+    padding-bottom: 8pt; margin-bottom: 6pt; margin-top: 0;
+  }
+  h1 + h3 {
+    text-align: center; color: #64748b; font-size: 10pt;
+    font-weight: 400; margin-top: 4pt; margin-bottom: 14pt;
+    text-transform: none;
+  }
+  h2 {
+    font-size: 13pt; color: #1e3a8a; font-weight: 800;
+    border-left: 4pt solid #3b82f6;
+    padding: 4pt 8pt; margin-top: 20pt; margin-bottom: 8pt;
+    background-color: #eff6ff;
+  }
+  h3 {
+    font-size: 9.5pt; color: #2563eb; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    border-bottom: 0.75pt solid #cbd5e0;
+    padding-bottom: 3pt; margin-top: 14pt; margin-bottom: 5pt;
+  }
+  h4 { font-size: 10pt; font-weight: 700; margin: 10pt 0 4pt; }
+  p { margin: 4pt 0 5pt; }
+  strong { color: #1e3a8a; font-weight: 700; }
+  hr { border: none; border-top: 0.75pt solid #cbd5e0; margin: 12pt 0; }
+  
+  table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 9pt; }
+  th { background-color: #1e3a8a; color: white; padding: 5pt 8pt; text-align: left; font-weight: 700; font-size: 8.5pt; }
+  td { padding: 4.5pt 8pt; border-bottom: 0.5pt solid #e2e8f0; vertical-align: top; line-height: 1.5; }
+  tr:nth-child(even) td { background-color: #f8fafc; }
+  
+  pre { background-color: #f1f5f9; padding: 10pt 12pt; font-size: 8pt; margin: 8pt 0; }
+  code { font-family: 'Courier New', Courier, monospace; font-size: 8.5pt; background-color: #f1f5f9; color: #b91c1c; }
+  
+  ul, ol { padding-left: 18pt; margin: 4pt 0; }
+  li { margin: 2pt 0; }
+  
+  blockquote {
+    border-left: 3pt solid #3b82f6;
+    background-color: #eff6ff;
+    padding: 6pt 10pt; margin: 8pt 0;
+  }
+</style>
+</head>
+<body>
+  ${bodyHtml}
+</body>
+</html>`;
+
+      try {
+        const blob = htmlDocx.asBlob(fullDocHtml, {
+          orientation: 'portrait',
+          margins: { top: 1080, right: 1080, bottom: 1080, left: 1080 }
+        });
+        saveAs(blob, `${targetFileName}.docx`);
+        showToast("DOCX file downloaded.", "success");
+      } catch (err) {
+        showToast("DOCX generation failed.", "error");
+      }
+    }
+
+    // 4. Download PDF (Print Trigger)
+    function downloadPdf() {
+      if (!currentSummaryMarkdown) return;
+      const prevTitle = document.title;
+      document.title = targetFileName.replace(/_/g, " ");
+      showToast("Opening print dialog... Choose 'Save as PDF'.", "info");
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => { document.title = prevTitle; }, 1000);
+      }, 400);
+    }
+  </script>
+</body>
+</html>
