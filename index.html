@@ -262,6 +262,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 // ── File Manifest ──────────────────────────────────────────────
 const ECO_BASE = 'ECO Topic Drilling/';
 const PG_BASE  = 'Process Group Drilling/';
+const OT_BASE  = 'Other Topics/';
 
 const MANIFEST = {
   eco: {
@@ -368,6 +369,19 @@ const MANIFEST = {
       '5.1 Closing_Close Project or Phase.md',
     ],
   },
+  ot: [
+    '1 Stakeholder Engagement.md',
+    '2 Scope Management.md',
+    '3 Risk Management.md',
+    '4 Agile Principles.md',
+    '5 Project Planning and Integration.md',
+    '6 Leadership.md',
+    '7 Performance Management of Team.md',
+    '8 Quality Management.md',
+    '9 Agile Project Management and Scrum.md',
+    '49_Process_Groupwise.md',
+    'GoldenTips_pmp.md',
+  ],
 };
 
 // ── Display name helpers ──────────────────────────────────────
@@ -380,9 +394,14 @@ function pgName(f) {
   const m = f.match(/^(\d+\.\d+)\s+\w[\w\s]*?_(.+)\.md$/);
   return m ? m[1]+' '+m[2] : f.replace(/\.md$/,'');
 }
+function otName(f) {
+  return f.replace(/\.md$/i,'')
+          .replace(/^\d+[\s_]+/, '')
+          .replace(/_/g,' ');
+}
 
 // ── State ────────────────────────────────────────────────────
-const segOpen    = { eco: true, pg: true, uc: true };
+const segOpen    = { eco: true, pg: true, ot: true, uc: true };
 const subsegOpen = {};
 function ssOpen(id) { return subsegOpen[id] !== false; }
 
@@ -398,7 +417,7 @@ function saveUC()  { try { localStorage.setItem(UC_KEY, JSON.stringify(ucItems))
 // ── Sidebar render ────────────────────────────────────────────
 function renderSidebar() {
   document.getElementById('sidebar-scroll').innerHTML =
-    buildSegECO() + buildSegPG() + buildSegUC();
+    buildSegECO() + buildSegPG() + buildSegOT() + buildSegUC();
 }
 
 function buildSegECO() {
@@ -457,6 +476,22 @@ function buildSegPG() {
     <div class="seg-header ${open?'':'seg-collapsed'}" data-toggle-seg="pg">
       <span class="seg-name">📋 Process Group Drilling</span>
       <span class="seg-count">${total}</span><span class="chevron">▾</span>
+    </div>
+    <div class="seg-body ${open?'':'hidden'}">${body}</div></div>`;
+}
+
+function buildSegOT() {
+  const files = MANIFEST.ot;
+  const open  = segOpen.ot;
+  const body  = files.map(f => {
+    const key = 'ot|'+f;
+    return `<div class="file-item${activeKey===key?' active':''}" data-key="${H(key)}" data-path="${H(OT_BASE+f)}" data-name="${H(otName(f))}">
+      <div class="file-dot"></div><div class="file-name">${H(otName(f))}</div></div>`;
+  }).join('');
+  return `<div class="segment">
+    <div class="seg-header ${open?'':'seg-collapsed'}" data-toggle-seg="ot">
+      <span class="seg-name">📖 Other Topics</span>
+      <span class="seg-count">${files.length}</span><span class="chevron">▾</span>
     </div>
     <div class="seg-body ${open?'':'hidden'}">${body}</div></div>`;
 }
