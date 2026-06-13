@@ -35,6 +35,9 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .btn-docx:hover{background:var(--accent-hover)}
 .btn-pdf{background:#6e1111;color:#fca5a5;border:1px solid #991b1b}
 .btn-pdf:hover{background:#991b1b;color:#fff}
+.btn-nav-toggle{background:var(--surface);color:var(--text-muted);border:1px solid var(--border)}
+.btn-nav-toggle:hover{background:var(--surface-2);color:var(--heading)}
+.btn-nav-toggle.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
 .font-ctrl{display:flex;align-items:center;gap:3px;padding:0 0.6rem;border-left:1px solid var(--border);border-right:1px solid var(--border)}
 .btn-font{background:var(--surface);color:var(--text-muted);border:1px solid var(--border);border-radius:4px;cursor:pointer;padding:0.27rem 0.52rem;font-weight:700;line-height:1;transition:background 0.12s,color 0.12s}
 .btn-font:hover{background:var(--surface-2);color:var(--heading)}
@@ -107,6 +110,8 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .nav-lbl{font-size:0.6rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-right:6px;flex-shrink:0}
 .nav-link{font-size:0.67rem;color:var(--accent);background:var(--accent-dim);padding:2px 8px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.12s,color 0.12s}
 .nav-link:hover{background:var(--accent);color:#fff}
+.nav-hide{margin-left:auto;flex-shrink:0;font-size:0.7rem;line-height:1;color:var(--text-muted);background:transparent;border:1px solid var(--border);border-radius:50%;width:20px;height:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background 0.12s,color 0.12s}
+.nav-hide:hover{background:var(--red,#f85149);color:#fff;border-color:transparent}
 #doc-wrapper{display:none;max-width:880px;margin:0 auto;padding:2.5rem 3.5rem 6rem;position:relative}
 #doc-wrapper.visible{display:block}
 
@@ -905,6 +910,7 @@ tr.line-highlighted td:first-child {
     <button class="btn-font btn-font-a+" id="btn-font-inc" onclick="adjFont(1)" title="Larger text">A+</button>
   </div>
   <div class="topbar-right">
+    <button class="btn btn-nav-toggle" id="btn-nav-toggle" onclick="toggleNav()" title="Toggle section jump bar">&#8801; <span class="btn-label">Nav</span></button>
     <button class="btn btn-docx" id="btn-docx" disabled onclick="downloadDocx()">⬇ <span class="btn-label">DOCX</span></button>
     <button class="btn btn-pdf"  id="btn-pdf"  disabled onclick="downloadPdf()">⬇ <span class="btn-label">PDF</span></button>
   </div>
@@ -1083,6 +1089,7 @@ function ssOpen(id) { return subsegOpen[id] !== false; }
 
 let activeKey = null;
 let _md = null, _displayName = null, _downloadName = null;
+let navHidden = localStorage.getItem('pmp_navhidden') === '1';
 
 // ── User Choice ───────────────────────────────────────────────
 const UC_KEY = 'pmp_uc_v2';
@@ -1333,15 +1340,23 @@ function clearView() {
 }
 
 // ── Section nav ───────────────────────────────────────────────
+function toggleNav() {
+  navHidden = !navHidden;
+  localStorage.setItem('pmp_navhidden', navHidden ? '1' : '0');
+  buildSectionNav();
+  document.getElementById('btn-nav-toggle').classList.toggle('active', !navHidden);
+}
+
 function buildSectionNav() {
   const nav = document.getElementById('section-nav');
   const hs  = document.querySelectorAll('#doc-content h2');
-  if (!hs.length) { nav.className=''; nav.innerHTML=''; return; }
+  if (!hs.length || navHidden) { nav.className=''; nav.innerHTML=''; return; }
   hs.forEach((h,i) => { h.id='sec'+i+'-'+h.textContent.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40); });
   nav.innerHTML = '<span class="nav-lbl">Jump →</span>' +
     Array.from(hs).map(h=>
       `<a class="nav-link" href="#${h.id}" onclick="scrollSec(event,'${h.id}')">${H(h.textContent.replace(/^\d+\.\s*/,'').trim())}</a>`
-    ).join('');
+    ).join('') +
+    '<button class="nav-hide" onclick="toggleNav()" title="Hide jump bar">&times;</button>';
   nav.className='visible';
 }
 function scrollSec(e,id) {
@@ -2281,6 +2296,7 @@ loadUC();
 loadFont();
 initializeHighlighter();
 renderSidebar();
+document.getElementById('btn-nav-toggle').classList.toggle('active', !navHidden);
 </script>
 </body>
 </html>
