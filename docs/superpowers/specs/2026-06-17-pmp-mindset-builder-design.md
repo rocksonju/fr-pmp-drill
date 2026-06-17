@@ -142,6 +142,27 @@ Updated on each answer. Drives the intro-card lifetime stats. Mirrors existing
 - Editing scenarios from inside the app (edit the MD file directly).
 - Cross-device sync (consistent with the rest of the app — localStorage only).
 
+## Companion Feature: Global Visitor Counter
+
+Small unrelated add-on bundled in the same work, approved 2026-06-17.
+
+- **Type:** Global total-visits count (real, shared across all visitors).
+- **Service:** Abacus (`abacus.jasoncameron.dev`) — free, no signup, no keys.
+  Maintained successor to CountAPI. Returns JSON `{ value }`.
+- **Namespace / key:** `pmp-drill-rabbyz` / `visits`.
+- **Increment logic (session-deduped):**
+  - First load in a browser session → `GET /hit/pmp-drill-rabbyz/visits`
+    (increments + returns total). Set a `sessionStorage` flag.
+  - Subsequent reloads in the same session → `GET /get/pmp-drill-rabbyz/visits`
+    (read only, no increment).
+- **Display:** small badge `👁 1,234 visits`, number comma-formatted, placed in
+  the sidebar footer (bottom). Unobtrusive.
+- **Fail-safe:** any network/API error → badge stays hidden; no broken UI, no
+  console errors surfaced to the user.
+- **Constraints:** counts total visits (session-deduped), not unique humans —
+  no-signup APIs cannot do true unique counting without cookies/auth. Static
+  site, no backend, no maintained keys.
+
 ## Risks / Notes
 
 - **Parser fragility:** mitigated by a strict, minimal format and skip-with-console-warn
