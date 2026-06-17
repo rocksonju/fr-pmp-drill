@@ -906,6 +906,7 @@ tr.line-highlighted td:first-child {
 .mindset-opt.correct{background:rgba(63,185,80,.15);border-color:var(--green,#3fb950);color:var(--heading)}
 .mindset-opt.wrong{background:rgba(248,81,73,.15);border-color:var(--red,#f85149);color:var(--heading)}
 .mindset-progress{font-size:.75rem;color:var(--text-muted);margin-bottom:.6rem}
+.mindset-timer-low{color:var(--red,#f85149);font-weight:700}
 .mindset-primer-list{margin:.4rem 0 1rem;padding-left:1.1rem;font-size:.85rem;line-height:1.6;color:var(--text,#c9d1d9)}
 .visitor-badge{display:inline-flex;align-items:center;gap:.3rem;margin-bottom:.35rem;font-size:.62rem;color:var(--text-muted)}
 </style>
@@ -1708,7 +1709,7 @@ function buildMindsetHeader() {
 }
 
 // ── PMP Mindset Builder ──
-let mindsetState = { all: [], pool: [], idx: 0, answers: [], theme: 'ALL' };
+let mindsetState = { all: [], pool: [], idx: 0, answers: [], theme: 'ALL', timerId: null, remaining: 0 };
 let mindsetLoaded = false;
 
 const MINDSET_PRIMER = [
@@ -1753,6 +1754,40 @@ function loadMindsetStats() {
   try { return JSON.parse(localStorage.getItem('pmp_mindset_v1')) || {}; }
   catch (e) { return {}; }
 }
+
+const MINDSET_SECONDS_PER_Q = 60; // per-question countdown
+
+function fmtMMSS(s) { const m = Math.floor(s / 60), x = s % 60; return m + ':' + String(x).padStart(2, '0'); }
+function stopMindsetTimer() { if (mindsetState.timerId) { clearInterval(mindsetState.timerId); mindsetState.timerId = null; } }
+function updateMindsetTimerEl() {
+  const el = document.getElementById('mindset-timer'); if (!el) return;
+  el.textContent = '⏱ ' + fmtMMSS(mindsetState.remaining);
+  el.classList.toggle('mindset-timer-low', mindsetState.remaining <= 10);
+}
+function startMindsetTimer() {
+  stopMindsetTimer();
+  mindsetState.remaining = MINDSET_SECONDS_PER_Q;
+  mindsetState.timerId = setInterval(() => {
+    const mc = document.getElementById('mindset-container');
+    if (!mc || mc.style.display !== 'block') { stopMindsetTimer(); return; } // bailed out to another view
+    mindsetState.remaining--;
+    if (mindsetState.remaining <= 0) { mindsetState.remaining = 0; stopMindsetTimer(); autoTimeoutMindset(); return; }
+    updateMindsetTimerEl();
+  }, 1000);
+}
+// Time ran out on the current question: record it as a timed-out miss, then move on.
+function autoTimeoutMindset() {
+  const idx = mindsetState.idx;
+  if (!mindsetState.answers[idx]) {
+    const s = mindsetState.pool[idx];
+    mindsetState.answers[idx] = { id: s.id, chosenIdx: -1, correct: false, timedOut: true };
+    const stats = loadMindsetStats();
+    const rec = stats[s.id] || { seen: 0, correct: 0 };
+    rec.seen++; stats[s.id] = rec; saveMindsetStats(stats);
+  }
+  showToast('Time up — next question', 'err');
+  nextMindset();
+}
 function saveMindsetStats(s) { localStorage.setItem('pmp_mindset_v1', JSON.stringify(s)); }
 
 async function startMindsetMode() {
@@ -1785,6 +1820,7 @@ async function startMindsetMode() {
 
 function renderMindsetIntro() {
   const mc = document.getElementById('mindset-container'); if (!mc) return;
+  stopMindsetTimer();
   const stats = loadMindsetStats();
   let seen = 0, correct = 0;
   Object.values(stats).forEach(v => { seen += v.seen || 0; correct += v.correct || 0; });
@@ -1805,6 +1841,7 @@ function renderMindsetIntro() {
 
 function renderMindsetThemeSelect() {
   const mc = document.getElementById('mindset-container'); if (!mc) return;
+  stopMindsetTimer();
   const themes = [...new Set(mindsetState.all.map(s => s.theme))];
   const opts = themes.map(t => {
     const n = mindsetState.all.filter(s => s.theme === t).length;
@@ -1840,14 +1877,15 @@ function startMindsetDrill() {
 
 function renderMindsetCard() {
   const mc = document.getElementById('mindset-container'); if (!mc) return;
+  startMindsetTimer(); // fresh per-question countdown
   const s = mindsetState.pool[mindsetState.idx];
   const n = mindsetState.pool.length;
   const score = mindsetState.answers.filter(a => a && a.correct).length;
   const optsHtml = s.options.map((o, i) => `<button class="mindset-opt" data-i="${i}" onclick="answerMindset(${i})">${H(o)}</button>`).join('');
   mc.innerHTML = `
     <div class="quiz-card">
-      <div class="mindset-progress">${H(s.theme)} · ${mindsetState.idx + 1} / ${n} · Score ${score}</div>
-      <div style="font-size:.95rem;line-height:1.6;color:var(--text,#c9d1d9);white-space:pre-line;margin-bottom:.75rem">${H(s.scenario)}</div>
+      <div class="mindset-progress">${H(s.theme)} · ${mindsetState.idx + 1} / ${n} · Score ${score} · <span id="mindset-timer">⏱ ${fmtMMSS(mindsetState.remaining)}</span></div>
+      <div style="font-size:.95rem;line-height:1.6;font-weight:700;color:var(--text,#c9d1d9);white-space:pre-line;margin-bottom:.75rem">${H(s.scenario)}</div>
       <div id="mindset-opts">${optsHtml}</div>
       <div id="mindset-feedback"></div>
     </div>`;
@@ -1856,6 +1894,7 @@ function renderMindsetCard() {
 function answerMindset(i) {
   const s = mindsetState.pool[mindsetState.idx];
   if (mindsetState.answers[mindsetState.idx]) return; // already answered
+  stopMindsetTimer(); // freeze countdown while reading the reasoning
   const correct = i === s.correctIdx;
   mindsetState.answers[mindsetState.idx] = { id: s.id, chosenIdx: i, correct };
   const stats = loadMindsetStats();
@@ -1887,6 +1926,7 @@ function nextMindset() {
 
 function renderMindsetReview() {
   const mc = document.getElementById('mindset-container'); if (!mc) return;
+  stopMindsetTimer();
   const n = mindsetState.pool.length;
   const score = mindsetState.answers.filter(a => a && a.correct).length;
   const pct = n ? Math.round(score / n * 100) : 0;
@@ -1894,9 +1934,9 @@ function renderMindsetReview() {
     .map((s, i) => ({ s, a: mindsetState.answers[i] }))
     .filter(x => x.a && !x.a.correct);
   const missedHtml = missed.length
-    ? missed.map(({ s }) => `
+    ? missed.map(({ s, a }) => `
       <div class="quiz-explanation" style="margin:.6rem 0">
-        <div style="font-weight:700;color:var(--heading)">${H(s.theme)} · ${H(s.id)}</div>
+        <div style="font-weight:700;color:var(--heading)">${H(s.theme)} · ${H(s.id)}${a && a.timedOut ? ' · <span style="color:var(--red,#f85149)">⏱ timed out</span>' : ''}</div>
         <div style="margin:.3rem 0;white-space:pre-line">${H(s.scenario)}</div>
         <div style="color:var(--green,#3fb950)">✓ ${H(s.options[s.correctIdx])}</div>
         <div style="margin-top:.3rem;line-height:1.5">🧠 ${H(s.reasoning)}</div>
