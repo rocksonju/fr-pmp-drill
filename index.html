@@ -905,8 +905,11 @@ tr.line-highlighted td:first-child {
 .mindset-opt:disabled{cursor:default}
 .mindset-opt.correct{background:rgba(63,185,80,.15);border-color:var(--green,#3fb950);color:var(--heading)}
 .mindset-opt.wrong{background:rgba(248,81,73,.15);border-color:var(--red,#f85149);color:var(--heading)}
-.mindset-progress{font-size:.75rem;color:var(--text-muted);margin-bottom:.6rem}
-.mindset-timer-low{color:var(--red,#f85149);font-weight:700}
+.mindset-progress{font-size:.75rem;color:var(--text-muted);margin-bottom:.6rem;padding-right:6rem}
+.mindset-timer-badge{position:absolute;top:.7rem;right:.8rem;z-index:2;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:1.8rem;font-weight:800;line-height:1;letter-spacing:.5px;padding:.4rem .75rem;border-radius:12px;color:#06210f;background:var(--green,#3fb950);border:2px solid #56e07a;box-shadow:0 0 16px rgba(63,185,80,.75);animation:mindsetPulse 1s ease-in-out infinite}
+@keyframes mindsetPulse{0%,100%{box-shadow:0 0 10px rgba(63,185,80,.55);transform:scale(1)}50%{box-shadow:0 0 22px rgba(63,185,80,.95);transform:scale(1.05)}}
+.mindset-timer-badge.mindset-timer-low{color:#fff;background:var(--red,#f85149);border-color:#ff8a82;box-shadow:0 0 18px rgba(248,81,73,.85);animation:mindsetPulseLow .5s ease-in-out infinite}
+@keyframes mindsetPulseLow{0%,100%{box-shadow:0 0 10px rgba(248,81,73,.6);transform:scale(1)}50%{box-shadow:0 0 24px rgba(248,81,73,1);transform:scale(1.07)}}
 .mindset-primer-list{margin:.4rem 0 1rem;padding-left:1.1rem;font-size:.85rem;line-height:1.6;color:var(--text,#c9d1d9)}
 .visitor-badge{display:inline-flex;align-items:center;gap:.3rem;margin-bottom:.35rem;font-size:.62rem;color:var(--text-muted)}
 </style>
@@ -1883,8 +1886,9 @@ function renderMindsetCard() {
   const score = mindsetState.answers.filter(a => a && a.correct).length;
   const optsHtml = s.options.map((o, i) => `<button class="mindset-opt" data-i="${i}" onclick="answerMindset(${i})">${H(o)}</button>`).join('');
   mc.innerHTML = `
-    <div class="quiz-card">
-      <div class="mindset-progress">${H(s.theme)} · ${mindsetState.idx + 1} / ${n} · Score ${score} · <span id="mindset-timer">⏱ ${fmtMMSS(mindsetState.remaining)}</span></div>
+    <div class="quiz-card" style="position:relative">
+      <div id="mindset-timer" class="mindset-timer-badge">⏱ ${fmtMMSS(mindsetState.remaining)}</div>
+      <div class="mindset-progress">${H(s.theme)} · ${mindsetState.idx + 1} / ${n} · Score ${score}</div>
       <div style="font-size:.95rem;line-height:1.6;font-weight:700;color:var(--text,#c9d1d9);white-space:pre-line;margin-bottom:.75rem">${H(s.scenario)}</div>
       <div id="mindset-opts">${optsHtml}</div>
       <div id="mindset-feedback"></div>
