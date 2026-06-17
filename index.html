@@ -905,6 +905,8 @@ tr.line-highlighted td:first-child {
 .mindset-opt:disabled{cursor:default}
 .mindset-opt.correct{background:rgba(63,185,80,.15);border-color:var(--green,#3fb950);color:var(--heading)}
 .mindset-opt.wrong{background:rgba(248,81,73,.15);border-color:var(--red,#f85149);color:var(--heading)}
+.mindset-opt.selected{border-color:var(--accent,#388bfd);background:rgba(56,139,253,.16);color:var(--heading)}
+.mindset-multi-hint{font-size:.72rem;font-weight:700;color:var(--accent,#388bfd);margin:.25rem 0 .5rem}
 .mindset-progress{font-size:.75rem;color:var(--text-muted);margin-bottom:.6rem;padding-right:6rem}
 .mindset-timer-badge{position:absolute;top:.7rem;right:.8rem;z-index:2;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:1.8rem;font-weight:800;line-height:1;letter-spacing:.5px;padding:.4rem .75rem;border-radius:12px;color:#06210f;background:var(--green,#3fb950);border:2px solid #56e07a;box-shadow:0 0 16px rgba(63,185,80,.75)}
 .mindset-timer-badge.mindset-timer-low{color:#fff;background:var(--red,#f85149);border-color:#ff8a82;box-shadow:0 0 18px rgba(248,81,73,.85)}
@@ -1710,7 +1712,7 @@ function buildMindsetHeader() {
 }
 
 // ── PMP Mindset Builder ──
-let mindsetState = { all: [], pool: [], idx: 0, answers: [], theme: 'ALL', timerId: null, remaining: 0 };
+let mindsetState = { all: [], pool: [], idx: 0, answers: [], theme: 'ALL', timerId: null, remaining: 0, selected: [] };
 let mindsetLoaded = false;
 
 const MINDSET_PRIMER = [
@@ -1727,7 +1729,7 @@ function parseMindset(md) {
   const scenarios = [];
   let theme = 'General', cur = null, mode = 'text';
   const flush = () => {
-    if (cur && cur.options.length && cur.correctIdx > -1 && cur.reasoning) scenarios.push(cur);
+    if (cur && cur.options.length && cur.correctIdxs.length && cur.reasoning) scenarios.push(cur);
     else if (cur) console.warn('Mindset scenario skipped (incomplete):', cur.id);
     cur = null;
   };
@@ -1736,13 +1738,13 @@ function parseMindset(md) {
     const mTheme = t.match(/^##\s+THEME:\s*(.+)$/i);
     const mId = t.match(/^###\s+(\S+)/);
     if (mTheme) { flush(); theme = mTheme[1].trim(); return; }
-    if (mId) { flush(); cur = { id: mId[1].trim(), theme, scenario: '', options: [], correctIdx: -1, reasoning: '' }; mode = 'text'; return; }
+    if (mId) { flush(); cur = { id: mId[1].trim(), theme, scenario: '', options: [], correctIdxs: [], reasoning: '' }; mode = 'text'; return; }
     if (!cur) return;
     if (/^>\s?/.test(t)) { cur.reasoning = (cur.reasoning ? cur.reasoning + ' ' : '') + t.replace(/^>\s?/, '').trim(); mode = 'reason'; return; }
     const mOpt = t.match(/^-\s+(.*)$/);
     if (mOpt) {
       let txt = mOpt[1].trim();
-      if (txt.startsWith('*')) { txt = txt.slice(1).trim(); cur.correctIdx = cur.options.length; }
+      if (txt.startsWith('*')) { txt = txt.slice(1).trim(); cur.correctIdxs.push(cur.options.length); }
       cur.options.push(txt); mode = 'opt'; return;
     }
     if (t && mode === 'text') cur.scenario = (cur.scenario ? cur.scenario + '\n' : '') + t;
@@ -1781,7 +1783,7 @@ function autoTimeoutMindset() {
   const idx = mindsetState.idx;
   if (!mindsetState.answers[idx]) {
     const s = mindsetState.pool[idx];
-    mindsetState.answers[idx] = { id: s.id, chosenIdx: -1, correct: false, timedOut: true };
+    mindsetState.answers[idx] = { id: s.id, chosenIdxs: [], correct: false, timedOut: true };
     const stats = loadMindsetStats();
     const rec = stats[s.id] || { seen: 0, correct: 0 };
     rec.seen++; stats[s.id] = rec; saveMindsetStats(stats);
@@ -1879,26 +1881,59 @@ function startMindsetDrill() {
 function renderMindsetCard() {
   const mc = document.getElementById('mindset-container'); if (!mc) return;
   startMindsetTimer(); // fresh per-question countdown
+  mindsetState.selected = [];
   const s = mindsetState.pool[mindsetState.idx];
   const n = mindsetState.pool.length;
   const score = mindsetState.answers.filter(a => a && a.correct).length;
-  const optsHtml = s.options.map((o, i) => `<button class="mindset-opt" data-i="${i}" onclick="answerMindset(${i})">${H(o)}</button>`).join('');
+  const multi = s.correctIdxs.length > 1;
+  const optsHtml = s.options.map((o, i) => `<button class="mindset-opt" data-i="${i}" onclick="${multi ? `toggleMindsetOpt(${i})` : `answerMindset(${i})`}">${H(o)}</button>`).join('');
+  const multiBar = multi
+    ? `<div class="mindset-multi-hint">Select ${s.correctIdxs.length} — then submit</div><button class="mindset-btn mindset-btn-primary" id="mindset-submit" disabled onclick="submitMindsetMulti()">Submit</button>`
+    : '';
   mc.innerHTML = `
     <div class="quiz-card" style="position:relative">
       <div id="mindset-timer" class="mindset-timer-badge">⏱ ${fmtMMSS(mindsetState.remaining)}</div>
       <div class="mindset-progress">${H(s.theme)} · ${mindsetState.idx + 1} / ${n} · Score ${score}</div>
       <div style="font-size:.95rem;line-height:1.6;font-weight:700;color:var(--text,#c9d1d9);white-space:pre-line;margin-bottom:.75rem">${H(s.scenario)}</div>
       <div id="mindset-opts">${optsHtml}</div>
+      ${multiBar}
       <div id="mindset-feedback"></div>
     </div>`;
 }
 
+// Single-answer question: clicking an option answers immediately.
 function answerMindset(i) {
-  const s = mindsetState.pool[mindsetState.idx];
   if (mindsetState.answers[mindsetState.idx]) return; // already answered
-  stopMindsetTimer(); // freeze countdown while reading the reasoning
-  const correct = i === s.correctIdx;
-  mindsetState.answers[mindsetState.idx] = { id: s.id, chosenIdx: i, correct };
+  stopMindsetTimer();
+  const s = mindsetState.pool[mindsetState.idx];
+  finishMindset(s.correctIdxs.includes(i), [i]);
+}
+
+// Multi-answer ("Select N") question: toggle picks, then submit.
+function toggleMindsetOpt(i) {
+  if (mindsetState.answers[mindsetState.idx]) return;
+  const k = mindsetState.selected.indexOf(i);
+  if (k > -1) mindsetState.selected.splice(k, 1); else mindsetState.selected.push(i);
+  const btn = document.querySelector(`#mindset-opts .mindset-opt[data-i="${i}"]`);
+  if (btn) btn.classList.toggle('selected');
+  const sub = document.getElementById('mindset-submit');
+  if (sub) sub.disabled = mindsetState.selected.length === 0;
+}
+
+function submitMindsetMulti() {
+  if (mindsetState.answers[mindsetState.idx]) return;
+  if (!mindsetState.selected.length) return;
+  stopMindsetTimer();
+  const s = mindsetState.pool[mindsetState.idx];
+  const sel = mindsetState.selected.slice();
+  const correct = sel.length === s.correctIdxs.length && sel.every(x => s.correctIdxs.includes(x));
+  finishMindset(correct, sel);
+}
+
+// Shared: record the answer, paint options, and render feedback + Next.
+function finishMindset(correct, chosenIdxs) {
+  const s = mindsetState.pool[mindsetState.idx];
+  mindsetState.answers[mindsetState.idx] = { id: s.id, chosenIdxs, correct };
   const stats = loadMindsetStats();
   const rec = stats[s.id] || { seen: 0, correct: 0 };
   rec.seen++; if (correct) rec.correct++;
@@ -1906,13 +1941,14 @@ function answerMindset(i) {
   document.querySelectorAll('#mindset-opts .mindset-opt').forEach(btn => {
     const bi = parseInt(btn.dataset.i, 10);
     btn.disabled = true;
-    if (bi === s.correctIdx) btn.classList.add('correct');
-    else if (bi === i) btn.classList.add('wrong');
+    if (s.correctIdxs.includes(bi)) btn.classList.add('correct');
+    else if (chosenIdxs.includes(bi)) btn.classList.add('wrong');
   });
+  const sub = document.getElementById('mindset-submit'); if (sub) sub.disabled = true;
   const last = mindsetState.idx === mindsetState.pool.length - 1;
   document.getElementById('mindset-feedback').innerHTML = `
     <div class="quiz-explanation" style="margin-top:1rem">
-      <div class="quiz-explanation-title">${correct ? '✅ Correct' : '❌ Not the first move'} · 🧠 Mindset</div>
+      <div class="quiz-explanation-title">${correct ? '✅ Correct' : '❌ Not quite'} · 🧠 Mindset</div>
       <div style="margin-top:.4rem;line-height:1.6">${H(s.reasoning)}</div>
     </div>
     <div style="margin-top:1rem">
@@ -1940,7 +1976,7 @@ function renderMindsetReview() {
       <div class="quiz-explanation" style="margin:.6rem 0">
         <div style="font-weight:700;color:var(--heading)">${H(s.theme)} · ${H(s.id)}${a && a.timedOut ? ' · <span style="color:var(--red,#f85149)">⏱ timed out</span>' : ''}</div>
         <div style="margin:.3rem 0;white-space:pre-line">${H(s.scenario)}</div>
-        <div style="color:var(--green,#3fb950)">✓ ${H(s.options[s.correctIdx])}</div>
+        <div style="color:var(--green,#3fb950)">${s.correctIdxs.map(ci => '✓ ' + H(s.options[ci])).join('<br>')}</div>
         <div style="margin-top:.3rem;line-height:1.5">🧠 ${H(s.reasoning)}</div>
       </div>`).join('')
     : '<p style="color:var(--green,#3fb950)">Perfect — no misses. 🎯</p>';
