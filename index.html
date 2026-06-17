@@ -891,6 +891,23 @@ tr.line-highlighted td:first-child {
 .quiz-icon {
   font-size: 1.1rem;
 }
+
+/* PMP Mindset Builder */
+.mindset-sidebar-btn{background:linear-gradient(135deg,rgba(63,185,80,.12) 0%,rgba(63,185,80,.04) 100%);border-color:rgba(63,185,80,.28);color:var(--green,#3fb950)}
+.mindset-sidebar-btn:hover{background:linear-gradient(135deg,rgba(63,185,80,.22) 0%,rgba(63,185,80,.08) 100%);border-color:var(--green,#3fb950);box-shadow:0 4px 12px rgba(63,185,80,.12)}
+.mindset-sidebar-btn.active{background:rgba(63,185,80,.18);border-color:var(--green,#3fb950);color:var(--heading);box-shadow:0 0 0 2px rgba(63,185,80,.2)}
+.mindset-btn{padding:.6rem 1.1rem;border-radius:8px;border:1px solid var(--border);background:var(--card,#161b22);color:var(--text,#c9d1d9);font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;transition:all .15s ease}
+.mindset-btn:hover{border-color:var(--accent,#388bfd);transform:translateY(-1px)}
+.mindset-btn-primary{background:var(--green,#3fb950);border-color:var(--green,#3fb950);color:#0d1117}
+.mindset-btn-primary:hover{filter:brightness(1.08)}
+.mindset-opt{display:block;width:100%;text-align:left;padding:.85rem 1rem;margin:.5rem 0;background:var(--card,#161b22);border:1px solid var(--border);border-radius:8px;color:var(--text,#c9d1d9);cursor:pointer;font-size:.9rem;line-height:1.5;transition:all .15s ease;font-family:inherit}
+.mindset-opt:hover:not(:disabled){border-color:var(--accent,#388bfd);transform:translateY(-1px)}
+.mindset-opt:disabled{cursor:default}
+.mindset-opt.correct{background:rgba(63,185,80,.15);border-color:var(--green,#3fb950);color:var(--heading)}
+.mindset-opt.wrong{background:rgba(248,81,73,.15);border-color:var(--red,#f85149);color:var(--heading)}
+.mindset-progress{font-size:.75rem;color:var(--text-muted);margin-bottom:.6rem}
+.mindset-primer-list{margin:.4rem 0 1rem;padding-left:1.1rem;font-size:.85rem;line-height:1.6;color:var(--text,#c9d1d9)}
+.visitor-badge{display:inline-flex;align-items:center;gap:.3rem;margin-bottom:.35rem;font-size:.62rem;color:var(--text-muted)}
 </style>
 </head>
 <body>
@@ -920,7 +937,10 @@ tr.line-highlighted td:first-child {
 <div class="layout">
   <aside class="sidebar">
     <div id="sidebar-scroll"></div>
-    <div class="sidebar-footer">Files fetched on click · User Choice stored locally</div>
+    <div class="sidebar-footer">
+      <span id="visitor-badge" class="visitor-badge" style="display:none;"></span>
+      <span>Files fetched on click · User Choice stored locally</span>
+    </div>
     <input type="file" id="file-input" accept=".md,.txt" multiple hidden onchange="handleFiles(event)">
     <input type="file" id="zip-input" accept=".zip" hidden onchange="handleZipImport(event)">
   </aside>
@@ -935,6 +955,7 @@ tr.line-highlighted td:first-child {
     <nav id="section-nav"></nav>
     <div id="doc-wrapper"><button id="line-highlighter-btn" class="line-highlighter-btn" title="Highlight line">🖍️</button><div id="doc-content"></div></div>
     <div id="quiz-container" class="quiz-container" style="display:none;"></div>
+    <div id="mindset-container" class="quiz-container" style="display:none;"></div>
   </main>
 </div>
 
@@ -1101,7 +1122,7 @@ function saveUC()  { try { localStorage.setItem(UC_KEY, JSON.stringify(ucItems))
 // ── Sidebar render ────────────────────────────────────────────
 function renderSidebar() {
   document.getElementById('sidebar-scroll').innerHTML =
-    buildQuizHeader() + buildSegECO() + buildSegPG() + buildSegOT() + buildSegUC();
+    buildQuizHeader() + buildMindsetHeader() + buildSegECO() + buildSegPG() + buildSegOT() + buildSegUC();
 }
 
 function buildSegECO() {
@@ -1668,6 +1689,15 @@ function buildQuizHeader() {
   return `<div class="quiz-sidebar-btn ${isQuizActive ? 'active' : ''}" onclick="startQuizMode()">
     <span class="quiz-icon">🧠</span>
     <span class="quiz-label">Interactive Quiz Mode</span>
+  </div>`;
+}
+
+function buildMindsetHeader() {
+  const mc = document.getElementById('mindset-container');
+  const active = mc && mc.style.display === 'block';
+  return `<div class="quiz-sidebar-btn mindset-sidebar-btn ${active ? 'active' : ''}" onclick="startMindsetMode()">
+    <span class="quiz-icon">🎯</span>
+    <span class="quiz-label">PMP Mindset Builder</span>
   </div>`;
 }
 
