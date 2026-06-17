@@ -1267,6 +1267,8 @@ async function fetchAndRender(path, key, displayName) {
   activeKey = key;
   const qc = document.getElementById('quiz-container');
   if (qc) qc.style.display = 'none';
+  const mc = document.getElementById('mindset-container');
+  if (mc) mc.style.display = 'none';
   renderSidebar();
   const dc = document.getElementById('doc-content');
   dc.innerHTML = '<p style="color:var(--text-muted);padding:2rem 0">Loading…</p>';
@@ -1335,6 +1337,8 @@ function selectUC(id) {
   activeKey = 'uc|'+id;
   const qc = document.getElementById('quiz-container');
   if (qc) qc.style.display = 'none';
+  const mc = document.getElementById('mindset-container');
+  if (mc) mc.style.display = 'none';
   renderSidebar();
   applyContent(t.content, t.displayName, t.downloadName);
   document.getElementById('empty-state').style.display='none';
@@ -1351,6 +1355,8 @@ function deleteUC(id) {
 function clearView() {
   const qc = document.getElementById('quiz-container');
   if (qc) qc.style.display = 'none';
+  const mc = document.getElementById('mindset-container');
+  if (mc) mc.style.display = 'none';
   document.getElementById('active-topic-name').textContent='';
   document.getElementById('doc-content').innerHTML='';
   document.getElementById('doc-wrapper').classList.remove('visible');
@@ -2051,7 +2057,9 @@ async function startQuizMode() {
   document.getElementById('empty-state').style.display = 'none';
   document.getElementById('doc-wrapper').classList.remove('visible');
   document.getElementById('section-nav').classList.remove('visible');
-  
+  const mcHide = document.getElementById('mindset-container');
+  if (mcHide) mcHide.style.display = 'none';
+
   let qc = document.getElementById('quiz-container');
   if (!qc) return;
   
