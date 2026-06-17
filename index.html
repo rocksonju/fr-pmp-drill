@@ -1829,7 +1829,7 @@ function renderMindsetThemeSelect() {
 
 function startMindsetDrill() {
   const sel = document.getElementById('mindset-theme');
-  const theme = sel ? sel.value : 'ALL';
+  const theme = (sel ? sel.value : null) || mindsetState.theme || 'ALL';
   mindsetState.theme = theme;
   mindsetState.pool = theme === 'ALL' ? mindsetState.all.slice() : mindsetState.all.filter(s => s.theme === theme);
   mindsetState.idx = 0;
