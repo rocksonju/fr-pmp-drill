@@ -2552,6 +2552,28 @@ loadFont();
 initializeHighlighter();
 renderSidebar();
 updateNavBtn();
+// ── Global Visitor Counter (Abacus, no-signup) ──
+async function initVisitorCounter() {
+  const badge = document.getElementById('visitor-badge');
+  if (!badge) return;
+  const ns = 'pmp-drill-rabbyz', key = 'visits';
+  const base = 'https://abacus.jasoncameron.dev';
+  const counted = sessionStorage.getItem('pmp_visit_counted') === '1';
+  const url = `${base}/${counted ? 'get' : 'hit'}/${ns}/${key}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (typeof data.value !== 'number') throw new Error('bad payload');
+    sessionStorage.setItem('pmp_visit_counted', '1');
+    badge.textContent = `👁 ${data.value.toLocaleString()} visits`;
+    badge.style.display = 'inline-flex';
+  } catch (err) {
+    // fail-safe: leave the badge hidden, no user-facing error
+    console.debug('visitor counter unavailable:', err.message);
+  }
+}
+initVisitorCounter();
 </script>
 </body>
 </html>
